@@ -15,9 +15,9 @@ RMarkdown^[This is an R Markdown document. Markdown is a simple formatting synta
 
 # Introduction
 
-In the lead up to the 2022 T20 World cup, the two Pakistani openers: Babar Azam and Mohammad Rizwan had been facing mounting criticism, despite being proliic run-makers. The basis of the criticism was their perceived slow batting and a lack of "intent", particularly during the Powerplay phase.
+In the lead up to the 2022 T20 World cup, the two Pakistani openers: Babar Azam and Mohammad Rizwan had been facing mounting criticism, despite being prolific run-makers. The basis of the criticism was their perceived slow batting and a lack of "intent", particularly during the Powerplay phase.
 
-At that time, I had thought of this analysis to figure out if there was merit in what the critics (most of them ex-players) were saying. Knowing Pakistan cricket, there are always hidden agendas at play and egos driving antagonistic behaviour, so it seemed reasonable to me to turn to data as a nuetral source of information. I also wanted an `R` project outside of work so here we are :)
+At that time, I had thought of this analysis to figure out if there was merit in what the critics (most of them ex-players) were saying. Knowing Pakistan cricket, there are always hidden agendas at play and egos driving antagonistic behaviour, so it seemed reasonable to me to turn to data as a neutral source of information. I also wanted an `R` project outside of work so here we are :)
 
 # Setting up
 
@@ -171,7 +171,15 @@ map(
 ```
 So, we can see that Babar and Rizwan have performed better than all other top teams' opening pairs in terms of impact in wins. Does this mean that they are better openers than the rest and that their method is better than the rest? 
 
-The answer is: It's not quite that simple. While we do have some initial evidence of the Babar and Rizwan partnership being better than the rest, we have to check for the possibility of survivorship bias. In the context of our analysis, survivorship bias would mean that Babar and Rizwan's strategy is such that when it comes off, they invariably have a large impact and win the game for Pak, but the strategy's likelihood of leading to wins maybe lesser than other strategies available to the team. Their maybe some merit to this argument, because when we look at the no.of wins Pak accumulated in our sample, it is in the middle of the pack (tied with England)
+The answer is: We can't say that yet. Remember when said PoM is a crude measure? That's exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful in wins, we have to measure if their method reduces the chances of victory for the team.
 
-In the next part, we will dissect data further and check how impactful the Babar-Rizwan partnership has been in our sample dataset and see if there might be some truth to the hypothesis that their strategy leads to less success for the team
+It could be the case that their method of play ensures that they're the most impactful contributors WHEN it comes off i.e. the team's batting is centered around them. But the method itself may be poor and leading to losses that could be avoided, i.e. the batting could be centered around a different group.
+
+There is some merit to this argument; when we look at the no.of wins Pak accumulated in our sample, it is in the middle of the pack (tied with England). Even if Pak was at the top of the wins list, there could still be the possibility of being even better with a different method of play at the top.
+
+We know that Babar and Rizwan have lesser Strike Rates than a pair like Buttler and Hales, and they trade it off with their higher consistency (i.e. less chances of getting out for a low score). But is consistency of that order needed in a T20 game? Is an average of 50 with SR of 120 better than an average of 35 with SR of 170? Where and how do we draw the lines?
+
+This brings us to the fundamental question of T20 batting performance measurement: How to reconcile the trade-off between consistency vs explosiveness (average vs SR). Too low an average with a high SR won't matter because the impact on games will be minimal. Too high an average with a low SR leads to a similar but worse problem (low impact as well as leaving less balls to play with for other batters)
+
+In the next part, we will try to come up with some measures to assess T20 batting and dissect data further to check how impactful the Babar-Rizwan partnership has been in creating 'circumstances for victory' . The goal would be to test if there might be some truth to the hypothesis that their batting method leads to less success for the team.
 
