@@ -158,7 +158,7 @@ team_func <- function(team = NULL,data = NULL,games=NULL) {
 }
 ```
 
-```{r results_compare, include=TRUE}
+```{r results_compare, include=TRUE, out.width=-"100%}
 map(
   .x = c("England", "India", "South Africa", "New Zealand"),
   .f = team_func,
@@ -169,11 +169,17 @@ map(
   kbl() %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
-So, we can see that Babar and Rizwan have performed better than all other top teams' opening pairs in terms of impact in wins. Does this mean that they are better openers than the rest and that their method is better than the rest? 
+So, we can see that Babar and Rizwan have performed better than all other top teams' opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.
+1. Babar and Rizwan form an impactful partnership at the top
+2. They have an impact on team victories more than other openers.
 
-The answer is: We can't say that yet. Remember when said PoM is a crude measure? That's exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful in wins, we have to measure if their method reduces the chances of victory for the team.
+Does the data also suggest that they are better openers than the rest and the criticism is completely unfounded? 
 
-It could be the case that their method of play ensures that they're the most impactful contributors WHEN it comes off i.e. the team's batting is centered around them. But the method itself may be poor and leading to losses that could be avoided, i.e. the batting could be centered around a different group.
+The answer is: We can't say that yet. Remember when I said PoM is a crude measure? That's exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful, it could also be a function of the strategy employed by the team.
+
+The strategy of Pak's batting has been such that it places the responsibility of the bulk of run scoring on these two, i.e. the team's batting is centered around them. As a result, when Pak wins through batting, these two have a very high chance of claiming the PoM award because they are fulfilling their role. But this also means they have to take lesser risks compared to an all-out attack approach and that might be ultimately harming the team's chances of accumulating wins over a long period of time.
+
+It could be the case that this strategy may be a poor use of batting resources available to Pakistan, i.e. run scoring responsibilities could be better allocated across all batters by asking Rizwan and Babar to play at a higher tempo. The idea would be to increase SR at the cost of batting average.
 
 There is some merit to this argument; when we look at the no.of wins Pak accumulated in our sample, it is in the middle of the pack (tied with England). Even if Pak was at the top of the wins list, there could still be the possibility of being even better with a different method of play at the top.
 
