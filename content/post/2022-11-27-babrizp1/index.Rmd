@@ -11,7 +11,7 @@ tags: []
 knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FALSE)
 ```
 
-RMarkdown^[This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see] <http://rmarkdown.rstudio.com>.
+This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <https://github.com/omertayyab/cric_blog_R>, for more details on using R Markdown, use the link <http://rmarkdown.rstudio.com>].
 
 # Introduction
 
@@ -181,5 +181,5 @@ We know that Babar and Rizwan have lesser Strike Rates than a pair like Buttler 
 
 This brings us to the fundamental question of T20 batting performance measurement: How to reconcile the trade-off between consistency vs explosiveness (average vs SR). Too low an average with a high SR won't matter because the impact on games will be minimal. Too high an average with a low SR leads to a similar but worse problem (low impact as well as leaving less balls to play with for other batters)
 
-In the next part, we will try to come up with some measures to assess T20 batting and dissect data further to check how impactful the Babar-Rizwan partnership has been in creating 'circumstances for victory' . The goal would be to test if there might be some truth to the hypothesis that their batting method leads to less success for the team.
+In the next part, we will try to come up with some measures to assess T20 batting and dissect data further to check how impactful the Babar-Rizwan partnership has been. The goal would be to test if there might be some truth to the hypothesis that their batting method leads to less success for the team.
 
