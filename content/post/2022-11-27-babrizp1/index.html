@@ -1,7 +1,7 @@
 ---
-title: The Babar Rizwan Question, Part 1
-author: OT
-date: '2022-11-27'
+title: "The Babar Rizwan Question, Part 1"
+author: "OT"
+date: "2022-11-27"
 slug: BabRizP1
 categories: []
 tags: []
@@ -9,6 +9,8 @@ tags: []
 
 <script src="{{< blogdown/postref >}}index_files/kePrint/kePrint.js"></script>
 <link href="{{< blogdown/postref >}}index_files/lightable/lightable.css" rel="stylesheet" />
+<link href="{{< blogdown/postref >}}index_files/bsTable/bootstrapTable.min.css" rel="stylesheet" />
+<script src="{{< blogdown/postref >}}index_files/bsTable/bootstrapTable.js"></script>
 
 
 <p>This is an R Markdown document<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>.</p>
@@ -135,7 +137,8 @@ pak_t &lt;- tibble(team=&quot;Pakistan&quot;,openers_POM=Bab_POM+Riz_POM,matches
 
   return(tibble(team=team,openers_POM=length(c1), matches_won=team_win, total_matches=games))
 }</code></pre>
-<pre class="r"><code>map(
+<pre class="r"><code>options(kableExtra.html.bsTable = TRUE)
+map(
   .x = c(&quot;England&quot;, &quot;India&quot;, &quot;South Africa&quot;, &quot;New Zealand&quot;),
   .f = team_func,
   data = all_data,
@@ -143,8 +146,8 @@ pak_t &lt;- tibble(team=&quot;Pakistan&quot;,openers_POM=Bab_POM+Riz_POM,matches
 ) %&gt;%
   bind_rows(pak_t, .) %&gt;%
   kbl() %&gt;%
-  kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;))</code></pre>
-<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+   kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;,&quot;responsive&quot;))</code></pre>
+<table class="table table-striped table-hover table-responsive" style="margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
 <th style="text-align:left;">
@@ -234,9 +237,13 @@ New Zealand
 </tr>
 </tbody>
 </table>
-<p>So, we can see that Babar and Rizwan have performed better than all other top teams’ opening pairs in terms of impact in wins. Does this mean that they are better openers than the rest and that their method is better than the rest?</p>
-<p>The answer is: We can’t say that yet. Remember when said PoM is a crude measure? That’s exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful in wins, we have to measure if their method reduces the chances of victory for the team.</p>
-<p>It could be the case that their method of play ensures that they’re the most impactful contributors WHEN it comes off i.e. the team’s batting is centered around them. But the method itself may be poor and leading to losses that could be avoided, i.e. the batting could be centered around a different group.</p>
+<p>So, we can see that Babar and Rizwan have performed better than all other top teams’ opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.
+1. Babar and Rizwan form an impactful partnership at the top
+2. They have an impact on team victories more than other openers.</p>
+<p>Does the data also suggest that they are better openers than the rest and the criticism is completely unfounded?</p>
+<p>The answer is: We can’t say that yet. Remember when I said PoM is a crude measure? That’s exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful, it could also be a function of the strategy employed by the team.</p>
+<p>The strategy of Pak’s batting has been such that it places the responsibility of the bulk of run scoring on these two, i.e. the team’s batting is centered around them. As a result, when Pak wins through batting, these two have a very high chance of claiming the PoM award because they are fulfilling their role. But this also means they have to take lesser risks compared to an all-out attack approach and that might be ultimately harming the team’s chances of accumulating wins over a period of time.</p>
+<p>It could be the case that this strategy may be a poor use of batting resources available to Pakistan, i.e. run scoring responsibilities could be better allocated across all batters by asking Rizwan and Babar to play at a higher tempo. The idea would be to increase SR at the cost of batting average.</p>
 <p>There is some merit to this argument; when we look at the no.of wins Pak accumulated in our sample, it is in the middle of the pack (tied with England). Even if Pak was at the top of the wins list, there could still be the possibility of being even better with a different method of play at the top.</p>
 <p>We know that Babar and Rizwan have lesser Strike Rates than a pair like Buttler and Hales, and they trade it off with their higher consistency (i.e. less chances of getting out for a low score). But is consistency of that order needed in a T20 game? Is an average of 50 with SR of 120 better than an average of 35 with SR of 170? Where and how do we draw the lines?</p>
 <p>This brings us to the fundamental question of T20 batting performance measurement: How to reconcile the trade-off between consistency vs explosiveness (average vs SR). Too low an average with a high SR won’t matter because the impact on games will be minimal. Too high an average with a low SR leads to a similar but worse problem (low impact as well as leaving less balls to play with for other batters)</p>

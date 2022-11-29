@@ -1,7 +1,7 @@
 ---
-title: The Babar Rizwan Question, Part 1
-author: OT
-date: '2022-11-27'
+title: "The Babar Rizwan Question, Part 1"
+author: "OT"
+date: "2022-11-27"
 slug: BabRizP1
 categories: []
 tags: []
@@ -64,7 +64,7 @@ To further filter the games by Babar and Rizwan's opening pair, we need to filte
 
 Once we have Pakistan's matches with Babar and Rizwan opening filtered out, we'll select the latest 25 games (disregarding games where Pakistan played Associate nations to avoid including games where it's easier to have a good performance).
 
-```{r Pakistan_matches, echo=TRUE, results='hide'}
+```{r Pakistan_matches, echo=TRUE, results='hide', cache=TRUE}
 
 Rizwan_ID <- 323389 # found using find_player_id() function
 Babar_ID <- 348144
@@ -122,7 +122,7 @@ Since we're not comparing to any specific opening pair and there may have been c
 
 Because we want to do the same thing for multiple teams, it makes sense to write the code just the one time as a function, which can be run on different teams. Otherwise, we'd have to copy paste it every time and change the name of the team in the code manually.
 
-```{r function_for_comparison, echo =TRUE}
+```{r function_for_comparison, echo =TRUE, cache=TRUE}
 
 team_func <- function(team = NULL,data = NULL,games=NULL) {
   team_data <- filter(data, team1 == team | team2 == team) %>%
@@ -158,7 +158,8 @@ team_func <- function(team = NULL,data = NULL,games=NULL) {
 }
 ```
 
-```{r results_compare, include=TRUE, out.width=-"100%}
+```{r results_compare, include=TRUE}
+options(kableExtra.html.bsTable = TRUE)
 map(
   .x = c("England", "India", "South Africa", "New Zealand"),
   .f = team_func,
@@ -167,7 +168,7 @@ map(
 ) %>%
   bind_rows(pak_t, .) %>%
   kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
+   kable_styling(bootstrap_options = c("striped", "hover","responsive"))
 ```
 So, we can see that Babar and Rizwan have performed better than all other top teams' opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.
 1. Babar and Rizwan form an impactful partnership at the top
@@ -177,7 +178,7 @@ Does the data also suggest that they are better openers than the rest and the cr
 
 The answer is: We can't say that yet. Remember when I said PoM is a crude measure? That's exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful, it could also be a function of the strategy employed by the team.
 
-The strategy of Pak's batting has been such that it places the responsibility of the bulk of run scoring on these two, i.e. the team's batting is centered around them. As a result, when Pak wins through batting, these two have a very high chance of claiming the PoM award because they are fulfilling their role. But this also means they have to take lesser risks compared to an all-out attack approach and that might be ultimately harming the team's chances of accumulating wins over a long period of time.
+The strategy of Pak's batting has been such that it places the responsibility of the bulk of run scoring on these two, i.e. the team's batting is centered around them. As a result, when Pak wins through batting, these two have a very high chance of claiming the PoM award because they are fulfilling their role. But this also means they have to take lesser risks compared to an all-out attack approach and that might be ultimately harming the team's chances of accumulating wins over a period of time.
 
 It could be the case that this strategy may be a poor use of batting resources available to Pakistan, i.e. run scoring responsibilities could be better allocated across all batters by asking Rizwan and Babar to play at a higher tempo. The idea would be to increase SR at the cost of batting average.
 
