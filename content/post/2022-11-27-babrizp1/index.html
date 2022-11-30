@@ -137,7 +137,10 @@ pak_t &lt;- tibble(team=&quot;Pakistan&quot;,openers_POM=Bab_POM+Riz_POM,matches
 
   return(tibble(team=team,openers_POM=length(c1), matches_won=team_win, total_matches=games))
 }</code></pre>
+<div style="overflow-x: auto">
 <pre class="r"><code>options(kableExtra.html.bsTable = TRUE)
+
+
 map(
   .x = c(&quot;England&quot;, &quot;India&quot;, &quot;South Africa&quot;, &quot;New Zealand&quot;),
   .f = team_func,
@@ -146,8 +149,8 @@ map(
 ) %&gt;%
   bind_rows(pak_t, .) %&gt;%
   kbl() %&gt;%
-   kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;,&quot;responsive&quot;))</code></pre>
-<table class="table table-striped table-hover table-responsive" style="margin-left: auto; margin-right: auto;">
+   kable_styling(bootstrap_options = c(&quot;striped&quot;,&quot;hover&quot;))</code></pre>
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
 <th style="text-align:left;">
@@ -237,10 +240,13 @@ New Zealand
 </tr>
 </tbody>
 </table>
-<p>So, we can see that Babar and Rizwan have performed better than all other top teams’ opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.
-1. Babar and Rizwan form an impactful partnership at the top
-2. They have an impact on team victories more than other openers.</p>
-<p>Does the data also suggest that they are better openers than the rest and the criticism is completely unfounded?</p>
+</div>
+<p>So, we can see that Babar and Rizwan have performed better than all other top teams’ opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.</p>
+<ol style="list-style-type: decimal">
+<li>Babar and Rizwan form an impactful partnership at the top.</li>
+<li>They have an impact on team victories more than other openers.</li>
+</ol>
+<p>Does the data also suggest that the criticism is completely unfounded?</p>
 <p>The answer is: We can’t say that yet. Remember when I said PoM is a crude measure? That’s exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful, it could also be a function of the strategy employed by the team.</p>
 <p>The strategy of Pak’s batting has been such that it places the responsibility of the bulk of run scoring on these two, i.e. the team’s batting is centered around them. As a result, when Pak wins through batting, these two have a very high chance of claiming the PoM award because they are fulfilling their role. But this also means they have to take lesser risks compared to an all-out attack approach and that might be ultimately harming the team’s chances of accumulating wins over a period of time.</p>
 <p>It could be the case that this strategy may be a poor use of batting resources available to Pakistan, i.e. run scoring responsibilities could be better allocated across all batters by asking Rizwan and Babar to play at a higher tempo. The idea would be to increase SR at the cost of batting average.</p>

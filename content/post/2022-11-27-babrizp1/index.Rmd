@@ -158,8 +158,11 @@ team_func <- function(team = NULL,data = NULL,games=NULL) {
 }
 ```
 
+::: { style="overflow-x: auto"}
 ```{r results_compare, include=TRUE}
 options(kableExtra.html.bsTable = TRUE)
+
+
 map(
   .x = c("England", "India", "South Africa", "New Zealand"),
   .f = team_func,
@@ -168,13 +171,17 @@ map(
 ) %>%
   bind_rows(pak_t, .) %>%
   kbl() %>%
-   kable_styling(bootstrap_options = c("striped", "hover","responsive"))
+   kable_styling(bootstrap_options = c("striped","hover"))
+
+
 ```
+:::
 So, we can see that Babar and Rizwan have performed better than all other top teams' opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.
-1. Babar and Rizwan form an impactful partnership at the top
+
+1. Babar and Rizwan form an impactful partnership at the top.
 2. They have an impact on team victories more than other openers.
 
-Does the data also suggest that they are better openers than the rest and the criticism is completely unfounded? 
+Does the data also suggest that the criticism is completely unfounded? 
 
 The answer is: We can't say that yet. Remember when I said PoM is a crude measure? That's exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful, it could also be a function of the strategy employed by the team.
 
