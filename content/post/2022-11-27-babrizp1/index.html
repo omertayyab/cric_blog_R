@@ -51,7 +51,7 @@ We are concerned with Babar and Rizwan’s relatively recent form, so let’s (s
 <p>I thought of this analysis in the lead-up to the 2022 T20 World Cup for the pair’s perceived lack of big impact runs for the team, and their possible over-consumption of balls. That’s why I’m limiting the analysis to pre-world cup matches. However, just so that people looking for numbers including the world cup don’t feel short-changed, I’ll run another analysis at the end which includes world cup games where the two fared poorly.</p>
 <div id="selecting-babar-and-rizwans-25-games" class="section level2">
 <h2>Selecting Babar and Rizwan’s 25 games</h2>
-<p>We want to select the matches where Babar and Rizwan opened together. We have ball-by-ball data (as <code>.csv</code> files) for these matches somewhere within our downloaded and extracted archive, but we don’t have a way of selecting our requisite <code>.csv</code>s to read into <code>R</code>. This is where the <code>cricketdata</code> package comes in.</p>
+<p>We want to select the matches where Babar and Rizwan opened together. We have ball-by-ball data (as <code>.csv</code> files) for these matches somewhere within our downloaded and extracted archive, but we don’t have a way of selecting our requisite <code>.csv</code> files to read into <code>R</code>. This is where the <code>cricketdata</code> package comes in.</p>
 <p>This package has a function that can provide us with the <code>match ID</code> by team and date of the game (and several other variables). The <code>.csv</code> files are named by their <code>match ID</code>, so we’ll filter out Pakistan’s games and get associated <code>match ID</code>.</p>
 <p>To further filter the games by Babar and Rizwan’s opening pair, we need to filter out Pakistan’s games where these two opened the batting (i.e. we need <code>match ID</code> for those games).There is no direct function to do that. So, we’ll pull in player specific data (which has dates when these players played, as well as their batting position) and cross reference dates when these two played as openers, with dates of games from our table with <code>match ID</code>.</p>
 <p>Once we have Pakistan’s matches with Babar and Rizwan opening filtered out, we’ll select the latest 25 games (disregarding games where Pakistan played Associate nations to avoid including games where it’s easier to have a good performance).</p>
@@ -149,8 +149,8 @@ map(
 ) %&gt;%
   bind_rows(pak_t, .) %&gt;%
   kbl() %&gt;%
-   kable_styling(bootstrap_options = c(&quot;striped&quot;,&quot;hover&quot;))</code></pre>
-<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+   kable_styling(bootstrap_options = c(&quot;striped&quot;,&quot;hover&quot;),full_width=F)</code></pre>
+<table class="table table-striped table-hover" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
 <th style="text-align:left;">

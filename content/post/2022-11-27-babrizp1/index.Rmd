@@ -64,7 +64,7 @@ I thought of this analysis in the lead-up to the 2022 T20 World Cup for the pair
 
 ## Selecting Babar and Rizwan's 25 games
 
-We want to select the matches where Babar and Rizwan opened together. We have ball-by-ball data (as `.csv` files) for these matches somewhere within our downloaded and extracted archive, but we don't have a way of selecting our requisite `.csv`s to read into `R`. This is where the `cricketdata` package comes in.
+We want to select the matches where Babar and Rizwan opened together. We have ball-by-ball data (as `.csv` files) for these matches somewhere within our downloaded and extracted archive, but we don't have a way of selecting our requisite `.csv` files to read into `R`. This is where the `cricketdata` package comes in.
 
 This package has a function that can provide us with the `match ID` by team and date of the game (and several other variables). The `.csv` files are named by their `match ID`, so we'll filter out Pakistan's games and get associated `match ID`.
 
