@@ -3,8 +3,16 @@ title: "The Babar Rizwan Question, Part 1"
 author: "OT"
 date: "2022-11-27"
 slug: BabRizP1
-categories: []
-tags: []
+categories: 
+  - data science
+  - cricket
+  - data
+  - analysis
+tags: 
+  - data science
+  - cricket
+  - data
+  - analysis
 ---
 
 ```{r setup, include=FALSE}
