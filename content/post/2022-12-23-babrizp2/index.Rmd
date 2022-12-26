@@ -1,0 +1,309 @@
+---
+title: The Babar Rizwan Question, Part 2
+author: OT
+date: '2022-12-23'
+slug: BabRizP2
+categories:
+  - analysis
+  - cricket
+  - data
+  - data science
+  - R
+tags:
+  - analysis
+  - cricket
+  - data
+  - data science
+  - R Markdown
+---
+```{r setup, include=FALSE}
+library(here)
+library(cricketdata)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(blogdown)
+library(gt)
+
+knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FALSE)
+```
+
+This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <https://github.com/omertayyab/cric_blog_R>, for more details on using R Markdown, use link <http://rmarkdown.rstudio.com>].
+
+
+```{r Pakistan_matches, echo=FALSE, results='hide', cache=TRUE}
+
+all_data <- read_csv(here("static/data/alldata.csv"))
+# all_data <- fetch_cricsheet(type="match",
+#                            gender="male",
+#                            competition="t20is")
+all_data$date <- lubridate::ymd(all_data$date)
+
+`%!in%` <- Negate(`%in%`) # custom function that will come in handy later with filtering
+
+
+Rizwan_ID <- 323389 # found using find_player_id() function
+Babar_ID <- 348144
+
+Riz_data <- fetch_player_data(Rizwan_ID, matchtype = "t20", activity = "batting") %>%
+  arrange(Date) %>%
+  filter(Pos == 1 | Pos == 2)
+
+Bab_data <- fetch_player_data(Babar_ID, matchtype = "t20", activity = "batting") %>%
+  arrange(Date) %>%
+  filter(Pos == 1 | Pos == 2)
+
+# finding dates of games where they both played together to cross-ref with match ids table
+game_dates <- Bab_data$Date[match(Riz_data$Date, Bab_data$Date) %>% na.omit()]
+
+Pak_data <- filter(all_data, team1 == "Pakistan" | team2 == "Pakistan") %>%
+  filter(., team1 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
+  filter(., team2 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
+  filter(., date <= lubridate::ymd("2022-10-16")) %>% # T20 cup opening date
+  filter(., date %in% game_dates) 
+
+  
+#Pak_win <- Pak_data %>%
+#  filter(winner == "Pakistan") %>%
+#  dim() %>%
+#  .[1]
+```
+
+
+# Introduction
+At the end of part 1, we had come to the conclusion that our under-fire pair of openers was in fact an impactful combination, but we had not figured out whether their playing style and strategy was the best use of the team's resources. To do that, we realized that we'd have to devise a method to evaluate the the trade-off between Strike Rate and average.
+
+One way to start our analysis could be to look at the other teams' first wicket average/SR for the openers. The first-wicket stats will give us an idea of how different teams approach opening batting in T20Is. We will also pull up some stats covering the the end of the Powerplay, because that's the major area of criticism on the two openers, and they'll help us figure out how different approaches to opening stack up against each other.
+
+To pull out these stats, we'll use the same technique as part 1, and ask `R` to tell us what was the average/SR for the first wicket, and what was the average/SR at the end of powerplay. We'll use the match ids from part 1, read in the files that are relevant from our data folder and pull the info out. Since, we have to do the same thing for 5 teams, it again makes sense to write a function once and call it with each team's name.
+
+However, we shouldn't use the sample from last time. That is because we are trying to assess batting performance free from any factor that can bias the results. One such factor is whether batting is done to set a target or to chase. Chasing can affect the approach of batters depending on the score, so we'll only use a sample where teams batted first. We'll again limit ourselves to the no. of games available for Babar and Rizwan where they opened which we'll calculate below.
+
+Pulling out the sample will require some work because our main `.csv` file does not contain information about which side batted first in a game. So, we'll use the `match_id` from the main file to read the individual match's scorecard. From the scorecard, we'll determine which side batted first. If our target team batted second, we'll discard that match from the sample and move onto the next `match_id`. For Pakistan's games, we'll also make sure that we're only looking at the games where Babar and Rizwan opened the batting.
+```{r Pak_data}
+i <- 1
+j <- 1
+x <- list()
+while (i <= dim(Pak_data)[1]) {
+  filename <- paste0(here("static", "data", "t20s_male_csv2", Pak_data$match_id[i]), ".csv")
+  y <- read_csv(filename, show_col_types = FALSE) %>%
+    filter(., innings == 1)
+  x[[j]] <- NULL
+  if (y$batting_team[1] == "Pakistan") {
+    x[[j]] <- y
+    j <- j + 1
+  }
+  i <- i + 1
+  paste(i, "files read")
+}
+
+x <- lapply(x, slice, 1) %>%
+  lapply(., select, -season) %>%
+  bind_rows(.)
+
+Pak_bat1 <- filter(Pak_data, match_id %in% x$match_id)
+max_games <- dim(Pak_bat1)[1]
+
+```
+
+Babar and Rizwan have opened `r dim(Pak_data)[1]` times and out of those they have batted first `r dim(Pak_bat1)[1]` times. So we'll limit the no. of games to that. Unfortunately, this is a small sample and we'll need to keep that in mind when we look at the stats.
+
+We'll build a common function once again for the top 5 teams which will take `match_id` from the main file and pull out desired stats from the match's scorecard file. We'll limit the no. of extractions to be the same as the no. of games played by Babar and Rizwan as openers batting first i.e. `r dim(Pak_bat1)[1]`. 
+
+```{r avg/SR, include = TRUE, cache=TRUE}
+team_f <- function(team = NULL, data = NULL, sample_size = NULL) {
+  data <- filter(data, team1 == team | team2 == team) %>%
+    filter(., team1 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
+    filter(., team2 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
+    filter(., date <= lubridate::ymd("2022-10-16")) %>% # T20 cup opening date
+    arrange(., desc(date))
+
+  if (team == "Pakistan") {
+    matches <- Pak_bat1$match_id
+  } else {
+    matches <- data$match_id
+  }
+  
+  i <- 1
+  j <- 1
+  x <- list()
+  while (j <= sample_size) {
+    filename <- paste0(here("static", "data", "t20s_male_csv2", matches[i]), ".csv")
+    y <- read_csv(filename,show_col_types = FALSE) %>%
+      filter(., innings == 1)
+    x[[j]] <- NULL
+    if (y$batting_team[1] == team) {
+      x[[j]] <- y
+      j <- j+1
+    }
+  i <- i + 1
+  paste(i, "files read")
+  }
+ 
+  x <- lapply(x, mutate, total = cumsum(runs_off_bat + extras))
+
+  final_score <- x %>%
+    lapply(., slice, n()) %>%
+    lapply(., select, -season) %>%
+    bind_rows() %>%
+    mutate(., ball = as.integer(ball) * 6 + (ball - as.integer(ball)) * 10)
+  
+  PP <- 
+    lapply(x, filter, ball < 6) %>%
+    lapply(.,mutate, wkts_fallen = length(unique(player_dismissed))-1) %>%
+    lapply(., slice, n()) %>%
+    lapply(., select, -season) %>%
+    bind_rows() %>%
+    mutate(., ball = as.integer(ball) * 6 + (ball - as.integer(ball)) * 10)
+
+  wk1 <- lapply(
+    x,
+    function(z) {
+      t <- filter(z, !is.na(player_dismissed)) %>% slice(., 1)
+      if (dim(t)[1] < 1) t <- slice(x, n())
+      t <- select(t, -season)
+      return(t)
+    }
+  ) %>%
+    bind_rows() %>%
+    mutate(., ball = as.integer(ball) * 6 + (ball - as.integer(ball)) * 10)
+
+
+  return(tibble(
+    team = team, 
+    wk1_median = median(wk1$total), 
+    wk1_SR_median = median(wk1$total / wk1$ball) * 100, 
+    PP_median = median(PP$total), 
+    PP_SR_median = median(PP$total / PP$ball) * 100,
+    PP_wkts= median(PP$wkts_fallen),
+    final_score_median = median(final_score$total),
+    total_matches = max_games)
+    )
+}
+```
+
+Once the function is ready, the rest is easy. We'll call the function for the top 5 teams and have it create output tables for us.
+
+::: { style="overflow-x: auto"}
+```{r results, include=TRUE, cache=TRUE}
+options(kableExtra.html.bsTable = TRUE)
+
+
+result <- map(
+  .x = c("Pakistan","England", "India", "South Africa", "New Zealand"),
+  .f = team_f,
+  data = all_data,
+  sample_size = max_games
+) %>%
+  bind_rows(.)
+
+result %>%
+  select(.,c(1:3,7)) %>%
+  kbl(.,
+      align = "c",
+      digits=1,
+      col.names = gsub("_"," ",colnames(result)[c(1:3,7)])
+      ) %>%
+  kable_styling(bootstrap_options = c("striped","hover"))
+
+result %>%
+  select(.,c(1,4:7)) %>%
+  kbl(.,
+      align = "c",
+      digits=1,
+      col.names = gsub("_"," ",colnames(result)[c(1,4:7)])
+      ) %>%
+  kable_styling(bootstrap_options = c("striped","hover"))
+```
+:::
+
+We can draw some conclusions from our results *only about our sample of games* (noting that the sample is small):
+
+1. We can confirm that Pak openers are the slowest scorers and also have just the third-highest average. This means that their conservatism may not be worth the cost (paid in terms of balls used up).
+2. However, when we arrive at the end of the Powerplay, we see that Pak is fairly close in terms of runs scored and have lost just one wicket. This means that Pak is able to accelerate to make up for the balls used up earlier, perhaps because taking the time earlier gave a greater understanding of conditions to the surviving opener.
+3. We need to figure out *who* provides the acceleration towards the end of the Powerplay period. If it's the no.3 or later batter, then clearly Pak's approach is inefficient (when batting first) but if it's the surviving opener who accelerates, then it may be the case that taking some time early on enables the batter to understand the pitch and increase the tempo.
+4. The trade-off between SR and average is shown in the different approach taken by Pak compared to England and India. Both these teams go harder from the beginning and take more risks, so they ended up losing more wickets by the time the Powerplay was over. But they also scored more, particularly in the case of India. And 0.5 wicket may well be worth an extra 7 runs (comparing India to Pakistan) when only 120 balls are to be bowled.
+
+So, now we'll try to figure out who accelerated the scoring for Pakistan in our sample of games. This would require some data wrangling: We already have the `match_id` for our sample, we'll use them to pull up the individual scorecard files. We'll look at the Powerplay over-by-over, take median stats for each over, then visualize how a median over played out in our sample. For ease, we'll designate the batters following Babar and Rizwan as "other batter", essentially amalgamating them into one entity. This will tell us whether the surviving opener accelerates, or the one who comes in after wickets fall.
+
+```{r over-by-over, include=TRUE, cache=TRUE}
+filenames <- paste0(here("static", "data", "t20s_male_csv2", Pak_bat1$match_id), ".csv")
+
+#other2 <- function(y) {
+#  sapply(y, function(x) {
+#    if (grepl("Babar", x) | grepl("Rizwan", x)) {
+#      return(x)
+#    } else {
+#      return("Other batter")
+#    }
+#  }) %>%
+#    unname
+#}
+
+other <- function(x) {
+  y <- c()
+  for (i in 1:length(x)) {
+    if (grepl("Babar", x[i]) | grepl("Rizwan", x[i])) {
+      y[i] <- x[i]
+    } else {
+      y[i] <- "Other Batter"
+    }
+  }
+  return(y)
+}
+
+Pak_bat1_sc <- 
+  lapply(filenames, read_csv) %>%
+  lapply(.,select,-season) %>%
+  bind_rows
+
+Pak_bat1_sc <- Pak_bat1_sc %>%
+  filter(., ball <6) %>%
+  filter(., innings==1) %>%
+  mutate(., across(striker,~other(.x))) %>%
+  mutate(., over=as.integer(ball)+1) %>%
+  filter(.,!(extras!=0 & runs_off_bat==0)) %>%
+  select(.,c("match_id","over","striker","runs_off_bat"))
+
+overs <- group_by(Pak_bat1_sc, match_id,over, striker) %>% 
+  summarize(runs= sum(runs_off_bat), balls=sum(n())) %>%
+  ungroup %>%
+  group_by(., over, striker) %>%
+  summarize(score=sum(runs), balls=sum(balls)) %>%
+  mutate(.,SR=score/balls*100) %>%
+  pivot_wider(., names_from=striker,values_from = c(score,balls,SR))
+
+  overs %>% 
+    ungroup %>% 
+    gt %>% 
+    tab_header(title="Over-by-over breakdown") %>% 
+    fmt_number(.,columns=-1,decimals=1) %>%
+    opt_row_striping(row_striping = TRUE) %>%
+    tab_spanner_delim(.,delim="_",columns=-1)
+  
+```
+
+
+As we can see from the data, the two openers really pick up the pace after going relatively slow in the first two overs. The only anomaly is Babar's 5th over SR. We can also see, that they have been the ones to do the bulk of the scoring at a higher SR than the "Other batter" which means that our hypothesis of them making up for taking things slow early on is true. For the most part, their SRs are better than the batters coming later (which makes sense as the new batter will take a bit of time to acclimatize to the conditions).
+
+Therefore, we can conclude that *much* of the criticism *related to Powerplay* on the two Pak openers has been unfair. However, the evidence doesn't suggest that batting resources are being utilized optimally when Pak is batting first. Pak may be able to benefit from a batter who starts hitting from the first over which could allow them to post higher PP scores, leading to a higher totals. It may also be the case, that the openers slow down too much after the Powerplay ends (playing the anchor role) and that may be the real area of concern.
+
+In the next part we'll build correlations between Powerplay scores and final totals and try to determine the worth of a wicket in different overs to determine optimal style of play. Our hope will be to figure out optimal batting tactics for Pakistan when batting first.
+
+```{r possible_idea_P3, include=FALSE}
+# Building a measure for that trade-off is a little tricky. This is because the trade-off is sensitive to several factors. One example of a factor is the context of the match. Consider the following examples:
+# 1. A team needs 20 runs to win off 10 balls
+# 2. A team needs 100 runs of 80 balls
+
+# In these specifically chosen examples, we can easily observe:
+#  1. a high SR is desirable in the first case, because the required runs are low and we have less balls remaining to score those runs
+#  2. For the second example, we'd want better consistency and players with higher averages to increase chances of victory.
+
+# And match context is just one factor, there could be several other factors like:
+#  1. Capability and role of other batters
+# 2. Pitch and overhead conditions
+#  3. quality of opposition's bowling
+#  4. Batting first or second
+
+# All this is to say that creating a measure that can encompass all these factors would require the kind of data we may not have. Instead, what we can do is look at the
+```

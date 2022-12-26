@@ -3,23 +3,23 @@ title: "The Babar Rizwan Question, Part 1"
 author: "OT"
 date: "2022-11-27"
 slug: BabRizP1
-categories: 
-  - data science
-  - cricket
-  - data
-  - analysis
-tags: 
-  - data science
-  - cricket
-  - data
-  - analysis
+categories:
+- data science
+- cricket
+- data
+- analysis
+tags:
+- data science
+- cricket
+- data
+- analysis
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FALSE)
 ```
 
-This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <https://github.com/omertayyab/cric_blog_R>, for more details on using R Markdown, use the link <http://rmarkdown.rstudio.com>].
+This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <https://github.com/omertayyab/cric_blog_R>, for more details on using R Markdown, use    link <http://rmarkdown.rstudio.com>].
 
 # Introduction
 
@@ -42,9 +42,10 @@ Thanks to other cricket lovers, we already have a wonderful package available in
 library(cricketdata)
 library(tidyverse)
 library(knitr)
+library(here)
 library(kableExtra)
 
-all_data <- read_csv("alldata.csv")
+all_data <- read_csv(here("static/data/alldata.csv"))
 # all_data <- fetch_cricsheet(type="match",
 #                            gender="male",
 #                            competition="t20is")
@@ -146,7 +147,7 @@ team_func <- function(team = NULL,data = NULL,games=NULL) {
     dim() %>%
     .[1]
 
-  filenames <- paste0("t20s_male_csv2/", team_POM$match_id, ".csv")
+  filenames <- paste0(here("static","data", "t20s_male_csv2", team_POM$match_id), ".csv")
 
   x1 <- list()
   x1 <- lapply(filenames, read_csv)
@@ -178,7 +179,7 @@ map(
   games = 25
 ) %>%
   bind_rows(pak_t, .) %>%
-  kbl() %>%
+  kbl(col.names = gsub("_"," ",colnames(result))) %>%
    kable_styling(bootstrap_options = c("striped","hover"))
 
 

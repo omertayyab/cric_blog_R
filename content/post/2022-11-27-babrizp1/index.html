@@ -3,8 +3,16 @@ title: "The Babar Rizwan Question, Part 1"
 author: "OT"
 date: "2022-11-27"
 slug: BabRizP1
-categories: []
-tags: []
+categories:
+- data science
+- cricket
+- data
+- analysis
+tags:
+- data science
+- cricket
+- data
+- analysis
 ---
 
 <script src="{{< blogdown/postref >}}index_files/kePrint/kePrint.js"></script>
@@ -32,9 +40,10 @@ tags: []
 <pre class="r"><code>library(cricketdata)
 library(tidyverse)
 library(knitr)
+library(here)
 library(kableExtra)
 
-all_data &lt;- read_csv(&quot;alldata.csv&quot;)
+all_data &lt;- read_csv(here(&quot;static/data/alldata.csv&quot;))
 # all_data &lt;- fetch_cricsheet(type=&quot;match&quot;,
 #                            gender=&quot;male&quot;,
 #                            competition=&quot;t20is&quot;)
@@ -119,7 +128,7 @@ pak_t &lt;- tibble(team=&quot;Pakistan&quot;,openers_POM=Bab_POM+Riz_POM,matches
     dim() %&gt;%
     .[1]
 
-  filenames &lt;- paste0(&quot;t20s_male_csv2/&quot;, team_POM$match_id, &quot;.csv&quot;)
+  filenames &lt;- paste0(here(&quot;static&quot;,&quot;data&quot;, &quot;t20s_male_csv2&quot;, team_POM$match_id), &quot;.csv&quot;)
 
   x1 &lt;- list()
   x1 &lt;- lapply(filenames, read_csv)
@@ -149,8 +158,8 @@ map(
 ) %&gt;%
   bind_rows(pak_t, .) %&gt;%
   kbl() %&gt;%
-   kable_styling(bootstrap_options = c(&quot;striped&quot;,&quot;hover&quot;),full_width=F)</code></pre>
-<table class="table table-striped table-hover" style="width: auto !important; margin-left: auto; margin-right: auto;">
+   kable_styling(bootstrap_options = c(&quot;striped&quot;,&quot;hover&quot;))</code></pre>
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
 <th style="text-align:left;">
@@ -258,6 +267,6 @@ New Zealand
 <div class="footnotes footnotes-end-of-document">
 <hr />
 <ol>
-<li id="fn1"><p>Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <a href="https://github.com/omertayyab/cric_blog_R" class="uri">https://github.com/omertayyab/cric_blog_R</a>, for more details on using R Markdown, use the link <a href="http://rmarkdown.rstudio.com" class="uri">http://rmarkdown.rstudio.com</a><a href="#fnref1" class="footnote-back">↩︎</a></p></li>
+<li id="fn1"><p>Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <a href="https://github.com/omertayyab/cric_blog_R" class="uri">https://github.com/omertayyab/cric_blog_R</a>, for more details on using R Markdown, use link <a href="http://rmarkdown.rstudio.com" class="uri">http://rmarkdown.rstudio.com</a><a href="#fnref1" class="footnote-back">↩︎</a></p></li>
 </ol>
 </div>

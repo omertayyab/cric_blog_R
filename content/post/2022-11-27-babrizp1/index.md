@@ -1,23 +1,33 @@
 ---
-title: The Babar Rizwan Question, Part 1
-author: OT
-date: '2022-11-27'
+title: "The Babar Rizwan Question, Part 1"
+author: "OT"
+date: "2022-11-27"
 slug: BabRizP1
-categories: []
-tags: []
+categories:
+- data science
+- cricket
+- data
+- analysis
+tags:
+- data science
+- cricket
+- data
+- analysis
 ---
 <script src="{{< blogdown/postref >}}index_files/kePrint/kePrint.js"></script>
 <link href="{{< blogdown/postref >}}index_files/lightable/lightable.css" rel="stylesheet" />
+<link href="{{< blogdown/postref >}}index_files/bsTable/bootstrapTable.min.css" rel="stylesheet" />
+<script src="{{< blogdown/postref >}}index_files/bsTable/bootstrapTable.js"></script>
 
 
 
-RMarkdown^[This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see] <http://rmarkdown.rstudio.com>.
+This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <https://github.com/omertayyab/cric_blog_R>, for more details on using R Markdown, use    link <http://rmarkdown.rstudio.com>].
 
 # Introduction
 
-In the lead up to the 2022 T20 World cup, the two Pakistani openers: Babar Azam and Mohammad Rizwan had been facing mounting criticism, despite being proliic run-makers. The basis of the criticism was their perceived slow batting and a lack of "intent", particularly during the Powerplay phase.
+In the lead up to the 2022 T20 World cup, the two Pakistani openers: Babar Azam and Mohammad Rizwan had been facing mounting criticism, despite being prolific run-makers. The basis of the criticism was their perceived slow batting and a lack of "intent", particularly during the Powerplay phase.
 
-At that time, I had thought of this analysis to figure out if there was merit in what the critics (most of them ex-players) were saying. Knowing Pakistan cricket, there are always hidden agendas at play and egos driving antagonistic behaviour, so it seemed reasonable to me to turn to data as a nuetral source of information. I also wanted an `R` project outside of work so here we are :)
+At that time, I had thought of this analysis to figure out if there was merit in what the critics (most of them ex-players) were saying. Knowing Pakistan cricket, there are always hidden agendas at play and egos driving antagonistic behaviour, so it seemed reasonable to me to turn to data as a neutral source of information. I also wanted an `R` project outside of work so here we are :)
 
 # Setting up
 
@@ -35,9 +45,10 @@ Thanks to other cricket lovers, we already have a wonderful package available in
 library(cricketdata)
 library(tidyverse)
 library(knitr)
+library(here)
 library(kableExtra)
 
-all_data <- read_csv("alldata.csv")
+all_data <- read_csv(here("static/data/alldata.csv"))
 # all_data <- fetch_cricsheet(type="match",
 #                            gender="male",
 #                            competition="t20is")
@@ -57,7 +68,7 @@ I thought of this analysis in the lead-up to the 2022 T20 World Cup for the pair
 
 ## Selecting Babar and Rizwan's 25 games
 
-We want to select the matches where Babar and Rizwan opened together. We have ball-by-ball data (as `.csv` files) for these matches somewhere within our downloaded and extracted archive, but we don't have a way of selecting our requisite `.csv`s to read into `R`. This is where the `cricketdata` package comes in.
+We want to select the matches where Babar and Rizwan opened together. We have ball-by-ball data (as `.csv` files) for these matches somewhere within our downloaded and extracted archive, but we don't have a way of selecting our requisite `.csv` files to read into `R`. This is where the `cricketdata` package comes in.
 
 This package has a function that can provide us with the `match ID` by team and date of the game (and several other variables). The `.csv` files are named by their `match ID`, so we'll filter out Pakistan's games and get associated `match ID`.
 
@@ -140,7 +151,7 @@ team_func <- function(team = NULL,data = NULL,games=NULL) {
     dim() %>%
     .[1]
 
-  filenames <- paste0("t20s_male_csv2/", team_POM$match_id, ".csv")
+  filenames <- paste0(here("static","data", "t20s_male_csv2", team_POM$match_id), ".csv")
 
   x1 <- list()
   x1 <- lapply(filenames, read_csv)
@@ -160,8 +171,12 @@ team_func <- function(team = NULL,data = NULL,games=NULL) {
 }
 ```
 
+::: { style="overflow-x: auto"}
 
 ```r
+options(kableExtra.html.bsTable = TRUE)
+
+
 map(
   .x = c("England", "India", "South Africa", "New Zealand"),
   .f = team_func,
@@ -170,7 +185,7 @@ map(
 ) %>%
   bind_rows(pak_t, .) %>%
   kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
+   kable_styling(bootstrap_options = c("striped","hover"))
 ```
 
 <table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
@@ -215,9 +230,25 @@ map(
   </tr>
 </tbody>
 </table>
-So, we can see that Babar and Rizwan have performed better than all other top teams' opening pairs in terms of impact in wins. Does this mean that they are better openers than the rest and that their method is better than the rest? 
+:::
+So, we can see that Babar and Rizwan have performed better than all other top teams' opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.
 
-The answer is: It's not quite that simple. While we do have some initial evidence of the Babar and Rizwan partnership being better than the rest, we have to check for the possibility of survivorship bias. In the context of our analysis, survivorship bias would mean that Babar and Rizwan's strategy is such that when it comes off, they invariably have a large impact and win the game for Pak, but the strategy's likelihood of leading to wins maybe lesser than other strategies available to the team. Their maybe some merit to this argument, because when we look at the no.of wins Pak accumulated in our sample, it is in the middle of the pack (tied with England)
+1. Babar and Rizwan form an impactful partnership at the top.
+2. They have an impact on team victories more than other openers.
 
-In the next part, we will dissect data further and check how impactful the Babar-Rizwan partnership has been in our sample dataset and see if there might be some truth to the hypothesis that their strategy leads to less success for the team
+Does the data also suggest that the criticism is completely unfounded? 
+
+The answer is: We can't say that yet. Remember when I said PoM is a crude measure? That's exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful, it could also be a function of the strategy employed by the team.
+
+The strategy of Pak's batting has been such that it places the responsibility of the bulk of run scoring on these two, i.e. the team's batting is centered around them. As a result, when Pak wins through batting, these two have a very high chance of claiming the PoM award because they are fulfilling their role. But this also means they have to take lesser risks compared to an all-out attack approach and that might be ultimately harming the team's chances of accumulating wins over a period of time.
+
+It could be the case that this strategy may be a poor use of batting resources available to Pakistan, i.e. run scoring responsibilities could be better allocated across all batters by asking Rizwan and Babar to play at a higher tempo. The idea would be to increase SR at the cost of batting average.
+
+There is some merit to this argument; when we look at the no.of wins Pak accumulated in our sample, it is in the middle of the pack (tied with England). Even if Pak was at the top of the wins list, there could still be the possibility of being even better with a different method of play at the top.
+
+We know that Babar and Rizwan have lesser Strike Rates than a pair like Buttler and Hales, and they trade it off with their higher consistency (i.e. less chances of getting out for a low score). But is consistency of that order needed in a T20 game? Is an average of 50 with SR of 120 better than an average of 35 with SR of 170? Where and how do we draw the lines?
+
+This brings us to the fundamental question of T20 batting performance measurement: How to reconcile the trade-off between consistency vs explosiveness (average vs SR). Too low an average with a high SR won't matter because the impact on games will be minimal. Too high an average with a low SR leads to a similar but worse problem (low impact as well as leaving less balls to play with for other batters)
+
+In the next part, we will try to come up with some measures to assess T20 batting and dissect data further to check how impactful the Babar-Rizwan partnership has been. The goal would be to test if there might be some truth to the hypothesis that their batting method leads to less success for the team.
 
