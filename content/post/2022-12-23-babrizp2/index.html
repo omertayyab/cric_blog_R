@@ -1,0 +1,956 @@
+---
+title: The Babar Rizwan Question, Part 2
+author: OT
+date: '2022-12-23'
+slug: BabRizP2
+categories:
+  - analysis
+  - cricket
+  - data
+  - data science
+  - R
+tags:
+  - analysis
+  - cricket
+  - data
+  - data science
+  - R Markdown
+---
+
+<script src="{{< blogdown/postref >}}index_files/kePrint/kePrint.js"></script>
+<link href="{{< blogdown/postref >}}index_files/lightable/lightable.css" rel="stylesheet" />
+<link href="{{< blogdown/postref >}}index_files/bsTable/bootstrapTable.min.css" rel="stylesheet" />
+<script src="{{< blogdown/postref >}}index_files/bsTable/bootstrapTable.js"></script>
+
+
+<p>This is an R Markdown document<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>.</p>
+<div id="introduction" class="section level1">
+<h1>Introduction</h1>
+<p>At the end of part 1, we had come to the conclusion that our under-fire pair of openers was in fact an impactful combination, but we had not figured out whether their playing style and strategy was the best use of the team’s resources. To do that, we realized that we’d have to devise a method to evaluate the the trade-off between Strike Rate and average.</p>
+<p>One way to start our analysis could be to look at the other teams’ first wicket average/SR for the openers. The first-wicket stats will give us an idea of how different teams approach opening batting in T20Is. We will also pull up some stats covering the the end of the Powerplay, because that’s the major area of criticism on the two openers, and they’ll help us figure out how different approaches to opening stack up against each other.</p>
+<p>To pull out these stats, we’ll use the same technique as part 1, and ask <code>R</code> to tell us what was the average/SR for the first wicket, and what was the average/SR at the end of powerplay. We’ll use the match ids from part 1, read in the files that are relevant from our data folder and pull the info out. Since, we have to do the same thing for 5 teams, it again makes sense to write a function once and call it with each team’s name.</p>
+<p>However, we shouldn’t use the sample from last time. That is because we are trying to assess batting performance free from any factor that can bias the results. One such factor is whether batting is done to set a target or to chase. Chasing can affect the approach of batters depending on the score, so we’ll only use a sample where teams batted first. We’ll again limit ourselves to the no. of games available for Babar and Rizwan where they opened which we’ll calculate below.</p>
+<p>Pulling out the sample will require some work because our main <code>.csv</code> file does not contain information about which side batted first in a game. So, we’ll use the <code>match_id</code> from the main file to read the individual match’s scorecard. From the scorecard, we’ll determine which side batted first. If our target team batted second, we’ll discard that match from the sample and move onto the next <code>match_id</code>. For Pakistan’s games, we’ll also make sure that we’re only looking at the games where Babar and Rizwan opened the batting.</p>
+<pre class="r"><code>i &lt;- 1
+j &lt;- 1
+x &lt;- list()
+while (i &lt;= dim(Pak_data)[1]) {
+  filename &lt;- paste0(here(&quot;static&quot;, &quot;data&quot;, &quot;t20s_male_csv2&quot;, Pak_data$match_id[i]), &quot;.csv&quot;)
+  y &lt;- read_csv(filename, show_col_types = FALSE) %&gt;%
+    filter(., innings == 1)
+  x[[j]] &lt;- NULL
+  if (y$batting_team[1] == &quot;Pakistan&quot;) {
+    x[[j]] &lt;- y
+    j &lt;- j + 1
+  }
+  i &lt;- i + 1
+  paste(i, &quot;files read&quot;)
+}
+
+x &lt;- lapply(x, slice, 1) %&gt;%
+  lapply(., select, -season) %&gt;%
+  bind_rows(.)
+
+Pak_bat1 &lt;- filter(Pak_data, match_id %in% x$match_id)
+max_games &lt;- dim(Pak_bat1)[1]</code></pre>
+<p>Babar and Rizwan have opened 37 times and out of those they have batted first 16 times. So we’ll limit the no. of games to that. Unfortunately, this is a small sample and we’ll need to keep that in mind when we look at the stats.</p>
+<p>We’ll build a common function once again for the top 5 teams which will take <code>match_id</code> from the main file and pull out desired stats from the match’s scorecard file. We’ll limit the no. of extractions to be the same as the no. of games played by Babar and Rizwan as openers batting first i.e. 16.</p>
+<pre class="r"><code>team_f &lt;- function(team = NULL, data = NULL, sample_size = NULL) {
+  data &lt;- filter(data, team1 == team | team2 == team) %&gt;%
+    filter(., team1 %!in% c(&quot;Namibia&quot;, &quot;Hong Kong&quot;, &quot;Scotland&quot;, &quot;Netherlands&quot;)) %&gt;%
+    filter(., team2 %!in% c(&quot;Namibia&quot;, &quot;Hong Kong&quot;, &quot;Scotland&quot;, &quot;Netherlands&quot;)) %&gt;%
+    filter(., date &lt;= lubridate::ymd(&quot;2022-10-16&quot;)) %&gt;% # T20 cup opening date
+    arrange(., desc(date))
+
+  if (team == &quot;Pakistan&quot;) {
+    matches &lt;- Pak_bat1$match_id
+  } else {
+    matches &lt;- data$match_id
+  }
+  
+  i &lt;- 1
+  j &lt;- 1
+  x &lt;- list()
+  while (j &lt;= sample_size) {
+    filename &lt;- paste0(here(&quot;static&quot;, &quot;data&quot;, &quot;t20s_male_csv2&quot;, matches[i]), &quot;.csv&quot;)
+    y &lt;- read_csv(filename,show_col_types = FALSE) %&gt;%
+      filter(., innings == 1)
+    x[[j]] &lt;- NULL
+    if (y$batting_team[1] == team) {
+      x[[j]] &lt;- y
+      j &lt;- j+1
+    }
+  i &lt;- i + 1
+  paste(i, &quot;files read&quot;)
+  }
+ 
+  x &lt;- lapply(x, mutate, total = cumsum(runs_off_bat + extras))
+
+  final_score &lt;- x %&gt;%
+    lapply(.,mutate, wkts_fallen = length(unique(player_dismissed))-1) %&gt;%
+    lapply(., slice, n()) %&gt;%
+    lapply(., select, -season) %&gt;%
+    bind_rows() %&gt;%
+    mutate(., ball = as.integer(ball) * 6 + (ball - as.integer(ball)) * 10)
+  
+  PP &lt;- 
+    lapply(x, filter, ball &lt; 6) %&gt;%
+    lapply(.,mutate, wkts_fallen = length(unique(player_dismissed))-1) %&gt;%
+    lapply(., slice, n()) %&gt;%
+    lapply(., select, -season) %&gt;%
+    bind_rows() %&gt;%
+    mutate(., ball = as.integer(ball) * 6 + (ball - as.integer(ball)) * 10)
+
+  wk1 &lt;- lapply(
+    x,
+    function(z) {
+      t &lt;- filter(z, !is.na(player_dismissed)) %&gt;% slice(., 1)
+      if (dim(t)[1] &lt; 1) t &lt;- slice(x, n())
+      t &lt;- select(t, -season)
+      return(t)
+    }
+  ) %&gt;%
+    bind_rows() %&gt;%
+    mutate(., ball = as.integer(ball) * 6 + (ball - as.integer(ball)) * 10)
+
+
+  return(tibble(
+    team = team, 
+    wk1_median = median(wk1$total), 
+    wk1_SR_median = median(wk1$total / wk1$ball) * 100, 
+    PP_median = median(PP$total), 
+    PP_SR_median = median(PP$total / PP$ball) * 100,
+    PP_wkts= median(PP$wkts_fallen),
+    final_score_median = median(final_score$total),
+    wkts_lost_median = median(final_score$wkts_fallen),
+    total_matches = max_games)
+    )
+}</code></pre>
+<p>Once the function is ready, the rest is easy. We’ll call the function for the top 5 teams and have it create output tables for us.</p>
+<div style="overflow-x: auto">
+<pre class="r"><code>options(kableExtra.html.bsTable = TRUE)
+
+
+result &lt;- map(
+  .x = c(&quot;Pakistan&quot;,&quot;England&quot;, &quot;India&quot;, &quot;South Africa&quot;, &quot;New Zealand&quot;),
+  .f = team_f,
+  data = all_data,
+  sample_size = max_games
+) %&gt;%
+  bind_rows(.)
+
+result %&gt;%
+  select(.,c(1:3,7)) %&gt;%
+  kbl(.,
+      align = &quot;c&quot;,
+      digits=1,
+      col.names = gsub(&quot;_&quot;,&quot; &quot;,colnames(result)[c(1:3,7)])
+      ) %&gt;%
+  kable_styling(bootstrap_options = c(&quot;striped&quot;,&quot;hover&quot;))</code></pre>
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:center;">
+team
+</th>
+<th style="text-align:center;">
+wk1 median
+</th>
+<th style="text-align:center;">
+wk1 SR median
+</th>
+<th style="text-align:center;">
+final score median
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+Pakistan
+</td>
+<td style="text-align:center;">
+29.0
+</td>
+<td style="text-align:center;">
+118.7
+</td>
+<td style="text-align:center;">
+160.0
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+England
+</td>
+<td style="text-align:center;">
+24.5
+</td>
+<td style="text-align:center;">
+137.0
+</td>
+<td style="text-align:center;">
+186.5
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+India
+</td>
+<td style="text-align:center;">
+33.5
+</td>
+<td style="text-align:center;">
+155.2
+</td>
+<td style="text-align:center;">
+184.5
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+South Africa
+</td>
+<td style="text-align:center;">
+30.5
+</td>
+<td style="text-align:center;">
+125.5
+</td>
+<td style="text-align:center;">
+167.5
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+New Zealand
+</td>
+<td style="text-align:center;">
+26.5
+</td>
+<td style="text-align:center;">
+130.4
+</td>
+<td style="text-align:center;">
+162.0
+</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>result %&gt;%
+  select(.,c(1,4:8)) %&gt;%
+  kbl(.,
+      align = &quot;c&quot;,
+      digits=1,
+      col.names = gsub(&quot;_&quot;,&quot; &quot;,colnames(result)[c(1,4:8)])
+      ) %&gt;%
+  kable_styling(bootstrap_options = c(&quot;striped&quot;,&quot;hover&quot;))</code></pre>
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:center;">
+team
+</th>
+<th style="text-align:center;">
+PP median
+</th>
+<th style="text-align:center;">
+PP SR median
+</th>
+<th style="text-align:center;">
+PP wkts
+</th>
+<th style="text-align:center;">
+final score median
+</th>
+<th style="text-align:center;">
+wkts lost median
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+Pakistan
+</td>
+<td style="text-align:center;">
+46.5
+</td>
+<td style="text-align:center;">
+129.2
+</td>
+<td style="text-align:center;">
+1.0
+</td>
+<td style="text-align:center;">
+160.0
+</td>
+<td style="text-align:center;">
+7.0
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+England
+</td>
+<td style="text-align:center;">
+47.5
+</td>
+<td style="text-align:center;">
+131.9
+</td>
+<td style="text-align:center;">
+1.5
+</td>
+<td style="text-align:center;">
+186.5
+</td>
+<td style="text-align:center;">
+6.0
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+India
+</td>
+<td style="text-align:center;">
+53.5
+</td>
+<td style="text-align:center;">
+147.2
+</td>
+<td style="text-align:center;">
+1.5
+</td>
+<td style="text-align:center;">
+184.5
+</td>
+<td style="text-align:center;">
+6.0
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+South Africa
+</td>
+<td style="text-align:center;">
+47.5
+</td>
+<td style="text-align:center;">
+131.9
+</td>
+<td style="text-align:center;">
+1.0
+</td>
+<td style="text-align:center;">
+167.5
+</td>
+<td style="text-align:center;">
+5.5
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+New Zealand
+</td>
+<td style="text-align:center;">
+42.5
+</td>
+<td style="text-align:center;">
+116.7
+</td>
+<td style="text-align:center;">
+1.0
+</td>
+<td style="text-align:center;">
+162.0
+</td>
+<td style="text-align:center;">
+6.0
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>We can draw some conclusions from our results <em>only about our sample of games</em> (noting that the sample is small):</p>
+<ol style="list-style-type: decimal">
+<li>We can confirm that Pak openers are the slowest scorers and also have just the third-highest average. This means that their conservatism may not be worth the cost (paid in terms of balls used up).</li>
+<li>However, when we arrive at the end of the Powerplay, we see that Pak is fairly close in terms of runs scored and have lost just one wicket. This means that Pak is able to accelerate to make up for the balls used up earlier, perhaps because taking the time earlier gave a greater understanding of conditions to the surviving opener.</li>
+<li>We need to figure out <em>who</em> provides the acceleration towards the end of the Powerplay period. If it’s the no.3 or later batter, then clearly Pak’s approach is inefficient (when batting first) but if it’s the surviving opener who accelerates, then it may be the case that taking some time early on enables the batter to understand the pitch and increase the tempo.</li>
+<li>The trade-off between SR and average is shown in the different approach taken by Pak compared to England and India. Both these teams go harder from the beginning and take more risks, so they ended up losing more wickets by the time the Powerplay was over. But they also scored more, particularly in the case of India. And 0.5 wicket may well be worth an extra 7 runs (comparing India to Pakistan) when only 120 balls are to be bowled.</li>
+</ol>
+<p>So, now we’ll try to figure out who accelerated the scoring for Pakistan in our sample of games. This would require some data wrangling: We already have the <code>match_id</code> for our sample, we’ll use them to pull up the individual scorecard files. We’ll look at the Powerplay over-by-over, take median stats for each over, then visualize how a median over played out in our sample. For ease, we’ll designate the batters following Babar and Rizwan as “other batter”, essentially amalgamating them into one entity. This will tell us whether the surviving opener accelerates, or the one who comes in after wickets fall.</p>
+<pre class="r"><code>filenames &lt;- paste0(here(&quot;static&quot;, &quot;data&quot;, &quot;t20s_male_csv2&quot;, Pak_bat1$match_id), &quot;.csv&quot;)
+
+#other2 &lt;- function(y) {
+#  sapply(y, function(x) {
+#    if (grepl(&quot;Babar&quot;, x) | grepl(&quot;Rizwan&quot;, x)) {
+#      return(x)
+#    } else {
+#      return(&quot;Other batter&quot;)
+#    }
+#  }) %&gt;%
+#    unname
+#}
+
+other &lt;- function(x) {
+  y &lt;- c()
+  for (i in 1:length(x)) {
+    if (grepl(&quot;Babar&quot;, x[i]) | grepl(&quot;Rizwan&quot;, x[i])) {
+      y[i] &lt;- x[i]
+    } else {
+      y[i] &lt;- &quot;Other Batter&quot;
+    }
+  }
+  return(y)
+}
+
+Pak_bat1_sc &lt;- 
+  lapply(filenames, read_csv) %&gt;%
+  lapply(.,select,-season) %&gt;%
+  bind_rows
+
+Pak_bat1_sc &lt;- Pak_bat1_sc %&gt;%
+  filter(., ball &lt;6) %&gt;%
+  filter(., innings==1) %&gt;%
+  mutate(., across(striker,~other(.x))) %&gt;%
+  mutate(., over=as.integer(ball)+1) %&gt;%
+  filter(.,!(extras!=0 &amp; runs_off_bat==0)) %&gt;%
+  select(.,c(&quot;match_id&quot;,&quot;over&quot;,&quot;striker&quot;,&quot;runs_off_bat&quot;))
+
+overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;% 
+  summarize(runs= sum(runs_off_bat), balls=sum(n())) %&gt;%
+  ungroup %&gt;%
+  group_by(., over, striker) %&gt;%
+  summarize(score=sum(runs), balls=sum(balls)) %&gt;%
+  mutate(.,SR=score/balls*100) %&gt;%
+  pivot_wider(., names_from=striker,values_from = c(score,balls,SR),names_glue = &quot;{striker}_{.value}&quot;) %&gt;%
+  select(.,order(names(.))) %&gt;%
+  relocate(.,over)
+
+  overs %&gt;% 
+    ungroup %&gt;% 
+    gt %&gt;% 
+    tab_header(title=&quot;Over-by-over breakdown&quot;) %&gt;% 
+    fmt_number(.,columns=-1,decimals=1) %&gt;%
+    opt_row_striping(row_striping = TRUE) %&gt;%
+    tab_spanner_delim(.,delim=&quot;_&quot;,columns=-1)</code></pre>
+<div id="cchzslpzwf" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#cchzslpzwf .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#cchzslpzwf .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#cchzslpzwf .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#cchzslpzwf .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#cchzslpzwf .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#cchzslpzwf .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#cchzslpzwf .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#cchzslpzwf .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#cchzslpzwf .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#cchzslpzwf .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#cchzslpzwf .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#cchzslpzwf .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#cchzslpzwf .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#cchzslpzwf .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#cchzslpzwf .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#cchzslpzwf .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#cchzslpzwf .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#cchzslpzwf .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#cchzslpzwf .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#cchzslpzwf .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#cchzslpzwf .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#cchzslpzwf .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#cchzslpzwf .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#cchzslpzwf .gt_left {
+  text-align: left;
+}
+
+#cchzslpzwf .gt_center {
+  text-align: center;
+}
+
+#cchzslpzwf .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#cchzslpzwf .gt_font_normal {
+  font-weight: normal;
+}
+
+#cchzslpzwf .gt_font_bold {
+  font-weight: bold;
+}
+
+#cchzslpzwf .gt_font_italic {
+  font-style: italic;
+}
+
+#cchzslpzwf .gt_super {
+  font-size: 65%;
+}
+
+#cchzslpzwf .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 75%;
+  vertical-align: 0.4em;
+}
+
+#cchzslpzwf .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#cchzslpzwf .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#cchzslpzwf .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#cchzslpzwf .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#cchzslpzwf .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#cchzslpzwf .gt_indent_5 {
+  text-indent: 25px;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <td colspan="10" class="gt_heading gt_title gt_font_normal gt_bottom_border" style>Over-by-over breakdown</td>
+    </tr>
+    
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="2" colspan="1" scope="col" id="over">over</th>
+      <th class="gt_center gt_columns_top_border gt_column_spanner_outer" rowspan="1" colspan="3" scope="colgroup" id="Babar Azam">
+        <span class="gt_column_spanner">Babar Azam</span>
+      </th>
+      <th class="gt_center gt_columns_top_border gt_column_spanner_outer" rowspan="1" colspan="3" scope="colgroup" id="Mohammad Rizwan">
+        <span class="gt_column_spanner">Mohammad Rizwan</span>
+      </th>
+      <th class="gt_center gt_columns_top_border gt_column_spanner_outer" rowspan="1" colspan="3" scope="colgroup" id="Other Batter">
+        <span class="gt_column_spanner">Other Batter</span>
+      </th>
+    </tr>
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="balls">balls</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="score">score</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="SR">SR</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="balls">balls</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="score">score</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="SR">SR</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="balls">balls</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="score">score</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="SR">SR</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td headers="over" class="gt_row gt_right">1</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right">37.0</td>
+<td headers="Babar Azam_score" class="gt_row gt_right">37.0</td>
+<td headers="Babar Azam_SR" class="gt_row gt_right">100.0</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right">54.0</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right">53.0</td>
+<td headers="Mohammad Rizwan_SR" class="gt_row gt_right">98.1</td>
+<td headers="Other Batter_balls" class="gt_row gt_right">3.0</td>
+<td headers="Other Batter_score" class="gt_row gt_right">2.0</td>
+<td headers="Other Batter_SR" class="gt_row gt_right">66.7</td></tr>
+    <tr><td headers="over" class="gt_row gt_right gt_striped">2</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right gt_striped">37.0</td>
+<td headers="Babar Azam_score" class="gt_row gt_right gt_striped">45.0</td>
+<td headers="Babar Azam_SR" class="gt_row gt_right gt_striped">121.6</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right gt_striped">47.0</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right gt_striped">45.0</td>
+<td headers="Mohammad Rizwan_SR" class="gt_row gt_right gt_striped">95.7</td>
+<td headers="Other Batter_balls" class="gt_row gt_right gt_striped">11.0</td>
+<td headers="Other Batter_score" class="gt_row gt_right gt_striped">6.0</td>
+<td headers="Other Batter_SR" class="gt_row gt_right gt_striped">54.5</td></tr>
+    <tr><td headers="over" class="gt_row gt_right">3</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right">37.0</td>
+<td headers="Babar Azam_score" class="gt_row gt_right">49.0</td>
+<td headers="Babar Azam_SR" class="gt_row gt_right">132.4</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right">41.0</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right">58.0</td>
+<td headers="Mohammad Rizwan_SR" class="gt_row gt_right">141.5</td>
+<td headers="Other Batter_balls" class="gt_row gt_right">13.0</td>
+<td headers="Other Batter_score" class="gt_row gt_right">25.0</td>
+<td headers="Other Batter_SR" class="gt_row gt_right">192.3</td></tr>
+    <tr><td headers="over" class="gt_row gt_right gt_striped">4</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right gt_striped">30.0</td>
+<td headers="Babar Azam_score" class="gt_row gt_right gt_striped">40.0</td>
+<td headers="Babar Azam_SR" class="gt_row gt_right gt_striped">133.3</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right gt_striped">51.0</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right gt_striped">70.0</td>
+<td headers="Mohammad Rizwan_SR" class="gt_row gt_right gt_striped">137.3</td>
+<td headers="Other Batter_balls" class="gt_row gt_right gt_striped">13.0</td>
+<td headers="Other Batter_score" class="gt_row gt_right gt_striped">17.0</td>
+<td headers="Other Batter_SR" class="gt_row gt_right gt_striped">130.8</td></tr>
+    <tr><td headers="over" class="gt_row gt_right">5</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right">23.0</td>
+<td headers="Babar Azam_score" class="gt_row gt_right">22.0</td>
+<td headers="Babar Azam_SR" class="gt_row gt_right">95.7</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right">39.0</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right">55.0</td>
+<td headers="Mohammad Rizwan_SR" class="gt_row gt_right">141.0</td>
+<td headers="Other Batter_balls" class="gt_row gt_right">32.0</td>
+<td headers="Other Batter_score" class="gt_row gt_right">27.0</td>
+<td headers="Other Batter_SR" class="gt_row gt_right">84.4</td></tr>
+    <tr><td headers="over" class="gt_row gt_right gt_striped">6</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right gt_striped">23.0</td>
+<td headers="Babar Azam_score" class="gt_row gt_right gt_striped">35.0</td>
+<td headers="Babar Azam_SR" class="gt_row gt_right gt_striped">152.2</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right gt_striped">45.0</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right gt_striped">85.0</td>
+<td headers="Mohammad Rizwan_SR" class="gt_row gt_right gt_striped">188.9</td>
+<td headers="Other Batter_balls" class="gt_row gt_right gt_striped">28.0</td>
+<td headers="Other Batter_score" class="gt_row gt_right gt_striped">34.0</td>
+<td headers="Other Batter_SR" class="gt_row gt_right gt_striped">121.4</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>As we can see from the data, the two openers really pick up the pace after going relatively slow in the first two overs. The only anomaly is Babar’s 5th over SR. We can also see, that they have been the ones to do the bulk of the scoring at a higher SR than the “Other batter” which means that our hypothesis of them making up for taking things slow early on is true. For the most part, their SRs are better than the batters coming later (which makes sense as the new batter will take a bit of time to acclimatize to the conditions).</p>
+<p>Therefore, we can conclude that <em>much</em> of the criticism <em>related to Powerplay</em> on the two Pak openers has been unfair. However, the evidence doesn’t suggest that batting resources are being utilized optimally when Pak is batting first. Pak may be able to benefit from a batter who starts hitting from the first over which could allow them to post higher PP scores, leading to a higher totals. It may also be the case, that the openers slow down too much after the Powerplay ends (playing the anchor role) and that may be the real area of concern.</p>
+<p>In the next part we’ll build correlations between Powerplay scores and final totals and try to determine the worth of a wicket in different overs to determine optimal style of play. Our hope will be to figure out optimal batting tactics for Pakistan when batting first.</p>
+</div>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<ol>
+<li id="fn1"><p>Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <a href="https://github.com/omertayyab/cric_blog_R" class="uri">https://github.com/omertayyab/cric_blog_R</a>, for more details on using R Markdown, use link <a href="http://rmarkdown.rstudio.com" class="uri">http://rmarkdown.rstudio.com</a><a href="#fnref1" class="footnote-back">↩︎</a></p></li>
+</ol>
+</div>
