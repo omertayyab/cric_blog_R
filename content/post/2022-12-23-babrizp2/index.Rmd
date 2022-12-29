@@ -143,6 +143,7 @@ team_f <- function(team = NULL, data = NULL, sample_size = NULL) {
   x <- lapply(x, mutate, total = cumsum(runs_off_bat + extras))
 
   final_score <- x %>%
+    lapply(.,mutate, wkts_fallen = length(unique(player_dismissed))-1) %>%
     lapply(., slice, n()) %>%
     lapply(., select, -season) %>%
     bind_rows() %>%
@@ -177,6 +178,7 @@ team_f <- function(team = NULL, data = NULL, sample_size = NULL) {
     PP_SR_median = median(PP$total / PP$ball) * 100,
     PP_wkts= median(PP$wkts_fallen),
     final_score_median = median(final_score$total),
+    wkts_lost_median = median(final_score$wkts_fallen),
     total_matches = max_games)
     )
 }
@@ -207,11 +209,11 @@ result %>%
   kable_styling(bootstrap_options = c("striped","hover"))
 
 result %>%
-  select(.,c(1,4:7)) %>%
+  select(.,c(1,4:8)) %>%
   kbl(.,
       align = "c",
       digits=1,
-      col.names = gsub("_"," ",colnames(result)[c(1,4:7)])
+      col.names = gsub("_"," ",colnames(result)[c(1,4:8)])
       ) %>%
   kable_styling(bootstrap_options = c("striped","hover"))
 ```
@@ -271,13 +273,15 @@ overs <- group_by(Pak_bat1_sc, match_id,over, striker) %>%
   group_by(., over, striker) %>%
   summarize(score=sum(runs), balls=sum(balls)) %>%
   mutate(.,SR=score/balls*100) %>%
-  pivot_wider(., names_from=striker,values_from = c(score,balls,SR))
+  pivot_wider(., names_from=striker,values_from = c(score,balls,SR),names_glue = "{striker}_{.value}") %>%
+  select(.,order(names(.))) %>%
+  relocate(.,over)
 
   overs %>% 
     ungroup %>% 
     gt %>% 
     tab_header(title="Over-by-over breakdown") %>% 
-    fmt_number(.,columns=-1,decimals=1) %>%
+    fmt_number(.,columns=c(4,7,10),decimals=1) %>%
     opt_row_striping(row_striping = TRUE) %>%
     tab_spanner_delim(.,delim="_",columns=-1)
   
