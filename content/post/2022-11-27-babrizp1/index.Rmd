@@ -172,19 +172,23 @@ team_func <- function(team = NULL,data = NULL,games=NULL) {
 options(kableExtra.html.bsTable = TRUE)
 
 
-map(
+result <- map(
   .x = c("England", "India", "South Africa", "New Zealand"),
   .f = team_func,
   data = all_data,
   games = 25
 ) %>%
-  bind_rows(pak_t, .) %>%
+  bind_rows(pak_t, .)
+
+result %>%
   kbl(col.names = gsub("_"," ",colnames(result))) %>%
    kable_styling(bootstrap_options = c("striped","hover"))
 
 
 ```
 :::
+
+# Results
 So, we can see that Babar and Rizwan have performed better than all other top teams' opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.
 
 1. Babar and Rizwan form an impactful partnership at the top.
@@ -202,6 +206,7 @@ There is some merit to this argument; when we look at the no.of wins Pak accumul
 
 We know that Babar and Rizwan have lesser Strike Rates than a pair like Buttler and Hales, and they trade it off with their higher consistency (i.e. less chances of getting out for a low score). But is consistency of that order needed in a T20 game? Is an average of 50 with SR of 120 better than an average of 35 with SR of 170? Where and how do we draw the lines?
 
+# Next Steps
 This brings us to the fundamental question of T20 batting performance measurement: How to reconcile the trade-off between consistency vs explosiveness (average vs SR). Too low an average with a high SR won't matter because the impact on games will be minimal. Too high an average with a low SR leads to a similar but worse problem (low impact as well as leaving less balls to play with for other batters)
 
 In the next part, we will try to come up with some measures to assess T20 batting and dissect data further to check how impactful the Babar-Rizwan partnership has been. The goal would be to test if there might be some truth to the hypothesis that their batting method leads to less success for the team.

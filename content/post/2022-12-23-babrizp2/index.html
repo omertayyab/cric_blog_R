@@ -25,11 +25,19 @@ tags:
 
 <p>This is an R Markdown document<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>.</p>
 <div id="introduction" class="section level1">
-<h1>Introduction</h1>
+<h1 id = "28">Introduction</h1>
 <p>At the end of part 1, we had come to the conclusion that our under-fire pair of openers was in fact an impactful combination, but we had not figured out whether their playing style and strategy was the best use of the team’s resources. To do that, we realized that we’d have to devise a method to evaluate the the trade-off between Strike Rate and average.</p>
+</div>
+<div id="setting-up" class="section level1">
+<h1 id = "32">Setting up</h1>
 <p>One way to start our analysis could be to look at the other teams’ first wicket average/SR for the openers. The first-wicket stats will give us an idea of how different teams approach opening batting in T20Is. We will also pull up some stats covering the the end of the Powerplay, because that’s the major area of criticism on the two openers, and they’ll help us figure out how different approaches to opening stack up against each other.</p>
+<div id="focusing-on-the-first-partnership" class="section level2">
+<h2 id = "35">Focusing on the first partnership</h2>
 <p>To pull out these stats, we’ll use the same technique as part 1, and ask <code>R</code> to tell us what was the average/SR for the first wicket, and what was the average/SR at the end of powerplay. We’ll use the match ids from part 1, read in the files that are relevant from our data folder and pull the info out. Since, we have to do the same thing for 5 teams, it again makes sense to write a function once and call it with each team’s name.</p>
 <p>However, we shouldn’t use the sample from last time. That is because we are trying to assess batting performance free from any factor that can bias the results. One such factor is whether batting is done to set a target or to chase. Chasing can affect the approach of batters depending on the score, so we’ll only use a sample where teams batted first. We’ll again limit ourselves to the no. of games available for Babar and Rizwan where they opened which we’ll calculate below.</p>
+</div>
+<div id="data-wrangling" class="section level2">
+<h2 id = "40">Data Wrangling</h2>
 <p>Pulling out the sample will require some work because our main <code>.csv</code> file does not contain information about which side batted first in a game. So, we’ll use the <code>match_id</code> from the main file to read the individual match’s scorecard. From the scorecard, we’ll determine which side batted first. If our target team batted second, we’ll discard that match from the sample and move onto the next <code>match_id</code>. For Pakistan’s games, we’ll also make sure that we’re only looking at the games where Babar and Rizwan opened the batting.</p>
 <pre class="r"><code>i &lt;- 1
 j &lt;- 1
@@ -54,6 +62,9 @@ x &lt;- lapply(x, slice, 1) %&gt;%
 Pak_bat1 &lt;- filter(Pak_data, match_id %in% x$match_id)
 max_games &lt;- dim(Pak_bat1)[1]</code></pre>
 <p>Babar and Rizwan have opened 37 times and out of those they have batted first 16 times. So we’ll limit the no. of games to that. Unfortunately, this is a small sample and we’ll need to keep that in mind when we look at the stats.</p>
+</div>
+<div id="stat-extraction-function" class="section level2">
+<h2 id = "67">Stat Extraction Function</h2>
 <p>We’ll build a common function once again for the top 5 teams which will take <code>match_id</code> from the main file and pull out desired stats from the match’s scorecard file. We’ll limit the no. of extractions to be the same as the no. of games played by Babar and Rizwan as openers batting first i.e. 16.</p>
 <pre class="r"><code>team_f &lt;- function(team = NULL, data = NULL, sample_size = NULL) {
   data &lt;- filter(data, team1 == team | team2 == team) %&gt;%
@@ -127,6 +138,10 @@ max_games &lt;- dim(Pak_bat1)[1]</code></pre>
     )
 }</code></pre>
 <p>Once the function is ready, the rest is easy. We’ll call the function for the top 5 teams and have it create output tables for us.</p>
+</div>
+</div>
+<div id="result-tables" class="section level1">
+<h1 id = "144">Result Tables</h1>
 <div style="overflow-x: auto">
 <pre class="r"><code>options(kableExtra.html.bsTable = TRUE)
 
@@ -379,19 +394,11 @@ New Zealand
 <li>We need to figure out <em>who</em> provides the acceleration towards the end of the Powerplay period. If it’s the no.3 or later batter, then clearly Pak’s approach is inefficient (when batting first) but if it’s the surviving opener who accelerates, then it may be the case that taking some time early on enables the batter to understand the pitch and increase the tempo.</li>
 <li>The trade-off between SR and average is shown in the different approach taken by Pak compared to England and India. Both these teams go harder from the beginning and take more risks, so they ended up losing more wickets by the time the Powerplay was over. But they also scored more, particularly in the case of India. And 0.5 wicket may well be worth an extra 7 runs (comparing India to Pakistan) when only 120 balls are to be bowled.</li>
 </ol>
+</div>
+<div id="further-analysis" class="section level1">
+<h1 id = "399">Further Analysis</h1>
 <p>So, now we’ll try to figure out who accelerated the scoring for Pakistan in our sample of games. This would require some data wrangling: We already have the <code>match_id</code> for our sample, we’ll use them to pull up the individual scorecard files. We’ll look at the Powerplay over-by-over, take median stats for each over, then visualize how a median over played out in our sample. For ease, we’ll designate the batters following Babar and Rizwan as “other batter”, essentially amalgamating them into one entity. This will tell us whether the surviving opener accelerates, or the one who comes in after wickets fall.</p>
 <pre class="r"><code>filenames &lt;- paste0(here(&quot;static&quot;, &quot;data&quot;, &quot;t20s_male_csv2&quot;, Pak_bat1$match_id), &quot;.csv&quot;)
-
-#other2 &lt;- function(y) {
-#  sapply(y, function(x) {
-#    if (grepl(&quot;Babar&quot;, x) | grepl(&quot;Rizwan&quot;, x)) {
-#      return(x)
-#    } else {
-#      return(&quot;Other batter&quot;)
-#    }
-#  }) %&gt;%
-#    unname
-#}
 
 other &lt;- function(x) {
   y &lt;- c()
@@ -432,15 +439,15 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
     ungroup %&gt;% 
     gt %&gt;% 
     tab_header(title=&quot;Over-by-over breakdown&quot;) %&gt;% 
-    fmt_number(.,columns=-1,decimals=1) %&gt;%
+    fmt_number(.,columns=c(4,7,10),decimals=1) %&gt;%
     opt_row_striping(row_striping = TRUE) %&gt;%
     tab_spanner_delim(.,delim=&quot;_&quot;,columns=-1)</code></pre>
-<div id="cchzslpzwf" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="vcygixfhko" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>html {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
 }
 
-#cchzslpzwf .gt_table {
+#vcygixfhko .gt_table {
   display: table;
   border-collapse: collapse;
   margin-left: auto;
@@ -465,7 +472,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-left-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_heading {
+#vcygixfhko .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -477,12 +484,12 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-right-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_caption {
+#vcygixfhko .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#cchzslpzwf .gt_title {
+#vcygixfhko .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -494,7 +501,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-bottom-width: 0;
 }
 
-#cchzslpzwf .gt_subtitle {
+#vcygixfhko .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -506,13 +513,13 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-top-width: 0;
 }
 
-#cchzslpzwf .gt_bottom_border {
+#vcygixfhko .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_col_headings {
+#vcygixfhko .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -527,7 +534,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-right-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_col_heading {
+#vcygixfhko .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -547,7 +554,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   overflow-x: hidden;
 }
 
-#cchzslpzwf .gt_column_spanner_outer {
+#vcygixfhko .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -559,15 +566,15 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   padding-right: 4px;
 }
 
-#cchzslpzwf .gt_column_spanner_outer:first-child {
+#vcygixfhko .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#cchzslpzwf .gt_column_spanner_outer:last-child {
+#vcygixfhko .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#cchzslpzwf .gt_column_spanner {
+#vcygixfhko .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -579,7 +586,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   width: 100%;
 }
 
-#cchzslpzwf .gt_group_heading {
+#vcygixfhko .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -605,7 +612,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   text-align: left;
 }
 
-#cchzslpzwf .gt_empty_group_heading {
+#vcygixfhko .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -620,15 +627,15 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   vertical-align: middle;
 }
 
-#cchzslpzwf .gt_from_md > :first-child {
+#vcygixfhko .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#cchzslpzwf .gt_from_md > :last-child {
+#vcygixfhko .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#cchzslpzwf .gt_row {
+#vcygixfhko .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -647,7 +654,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   overflow-x: hidden;
 }
 
-#cchzslpzwf .gt_stub {
+#vcygixfhko .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -660,7 +667,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   padding-right: 5px;
 }
 
-#cchzslpzwf .gt_stub_row_group {
+#vcygixfhko .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -674,11 +681,11 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   vertical-align: top;
 }
 
-#cchzslpzwf .gt_row_group_first td {
+#vcygixfhko .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#cchzslpzwf .gt_summary_row {
+#vcygixfhko .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -688,16 +695,16 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   padding-right: 5px;
 }
 
-#cchzslpzwf .gt_first_summary_row {
+#vcygixfhko .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_first_summary_row.thick {
+#vcygixfhko .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#cchzslpzwf .gt_last_summary_row {
+#vcygixfhko .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -707,7 +714,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-bottom-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_grand_summary_row {
+#vcygixfhko .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -717,7 +724,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   padding-right: 5px;
 }
 
-#cchzslpzwf .gt_first_grand_summary_row {
+#vcygixfhko .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -727,11 +734,11 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-top-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_striped {
+#vcygixfhko .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#cchzslpzwf .gt_table_body {
+#vcygixfhko .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -740,7 +747,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-bottom-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_footnotes {
+#vcygixfhko .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -754,7 +761,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-right-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_footnote {
+#vcygixfhko .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-left: 4px;
@@ -763,7 +770,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   padding-right: 5px;
 }
 
-#cchzslpzwf .gt_sourcenotes {
+#vcygixfhko .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -777,7 +784,7 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   border-right-color: #D3D3D3;
 }
 
-#cchzslpzwf .gt_sourcenote {
+#vcygixfhko .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -785,64 +792,64 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   padding-right: 5px;
 }
 
-#cchzslpzwf .gt_left {
+#vcygixfhko .gt_left {
   text-align: left;
 }
 
-#cchzslpzwf .gt_center {
+#vcygixfhko .gt_center {
   text-align: center;
 }
 
-#cchzslpzwf .gt_right {
+#vcygixfhko .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#cchzslpzwf .gt_font_normal {
+#vcygixfhko .gt_font_normal {
   font-weight: normal;
 }
 
-#cchzslpzwf .gt_font_bold {
+#vcygixfhko .gt_font_bold {
   font-weight: bold;
 }
 
-#cchzslpzwf .gt_font_italic {
+#vcygixfhko .gt_font_italic {
   font-style: italic;
 }
 
-#cchzslpzwf .gt_super {
+#vcygixfhko .gt_super {
   font-size: 65%;
 }
 
-#cchzslpzwf .gt_footnote_marks {
+#vcygixfhko .gt_footnote_marks {
   font-style: italic;
   font-weight: normal;
   font-size: 75%;
   vertical-align: 0.4em;
 }
 
-#cchzslpzwf .gt_asterisk {
+#vcygixfhko .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#cchzslpzwf .gt_indent_1 {
+#vcygixfhko .gt_indent_1 {
   text-indent: 5px;
 }
 
-#cchzslpzwf .gt_indent_2 {
+#vcygixfhko .gt_indent_2 {
   text-indent: 10px;
 }
 
-#cchzslpzwf .gt_indent_3 {
+#vcygixfhko .gt_indent_3 {
   text-indent: 15px;
 }
 
-#cchzslpzwf .gt_indent_4 {
+#vcygixfhko .gt_indent_4 {
   text-indent: 20px;
 }
 
-#cchzslpzwf .gt_indent_5 {
+#vcygixfhko .gt_indent_5 {
   text-indent: 25px;
 }
 </style>
@@ -880,72 +887,78 @@ overs &lt;- group_by(Pak_bat1_sc, match_id,over, striker) %&gt;%
   </thead>
   <tbody class="gt_table_body">
     <tr><td headers="over" class="gt_row gt_right">1</td>
-<td headers="Babar Azam_balls" class="gt_row gt_right">37.0</td>
-<td headers="Babar Azam_score" class="gt_row gt_right">37.0</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right">37</td>
+<td headers="Babar Azam_score" class="gt_row gt_right">37</td>
 <td headers="Babar Azam_SR" class="gt_row gt_right">100.0</td>
-<td headers="Mohammad Rizwan_balls" class="gt_row gt_right">54.0</td>
-<td headers="Mohammad Rizwan_score" class="gt_row gt_right">53.0</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right">54</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right">53</td>
 <td headers="Mohammad Rizwan_SR" class="gt_row gt_right">98.1</td>
-<td headers="Other Batter_balls" class="gt_row gt_right">3.0</td>
-<td headers="Other Batter_score" class="gt_row gt_right">2.0</td>
+<td headers="Other Batter_balls" class="gt_row gt_right">3</td>
+<td headers="Other Batter_score" class="gt_row gt_right">2</td>
 <td headers="Other Batter_SR" class="gt_row gt_right">66.7</td></tr>
     <tr><td headers="over" class="gt_row gt_right gt_striped">2</td>
-<td headers="Babar Azam_balls" class="gt_row gt_right gt_striped">37.0</td>
-<td headers="Babar Azam_score" class="gt_row gt_right gt_striped">45.0</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right gt_striped">37</td>
+<td headers="Babar Azam_score" class="gt_row gt_right gt_striped">45</td>
 <td headers="Babar Azam_SR" class="gt_row gt_right gt_striped">121.6</td>
-<td headers="Mohammad Rizwan_balls" class="gt_row gt_right gt_striped">47.0</td>
-<td headers="Mohammad Rizwan_score" class="gt_row gt_right gt_striped">45.0</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right gt_striped">47</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right gt_striped">45</td>
 <td headers="Mohammad Rizwan_SR" class="gt_row gt_right gt_striped">95.7</td>
-<td headers="Other Batter_balls" class="gt_row gt_right gt_striped">11.0</td>
-<td headers="Other Batter_score" class="gt_row gt_right gt_striped">6.0</td>
+<td headers="Other Batter_balls" class="gt_row gt_right gt_striped">11</td>
+<td headers="Other Batter_score" class="gt_row gt_right gt_striped">6</td>
 <td headers="Other Batter_SR" class="gt_row gt_right gt_striped">54.5</td></tr>
     <tr><td headers="over" class="gt_row gt_right">3</td>
-<td headers="Babar Azam_balls" class="gt_row gt_right">37.0</td>
-<td headers="Babar Azam_score" class="gt_row gt_right">49.0</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right">37</td>
+<td headers="Babar Azam_score" class="gt_row gt_right">49</td>
 <td headers="Babar Azam_SR" class="gt_row gt_right">132.4</td>
-<td headers="Mohammad Rizwan_balls" class="gt_row gt_right">41.0</td>
-<td headers="Mohammad Rizwan_score" class="gt_row gt_right">58.0</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right">41</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right">58</td>
 <td headers="Mohammad Rizwan_SR" class="gt_row gt_right">141.5</td>
-<td headers="Other Batter_balls" class="gt_row gt_right">13.0</td>
-<td headers="Other Batter_score" class="gt_row gt_right">25.0</td>
+<td headers="Other Batter_balls" class="gt_row gt_right">13</td>
+<td headers="Other Batter_score" class="gt_row gt_right">25</td>
 <td headers="Other Batter_SR" class="gt_row gt_right">192.3</td></tr>
     <tr><td headers="over" class="gt_row gt_right gt_striped">4</td>
-<td headers="Babar Azam_balls" class="gt_row gt_right gt_striped">30.0</td>
-<td headers="Babar Azam_score" class="gt_row gt_right gt_striped">40.0</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right gt_striped">30</td>
+<td headers="Babar Azam_score" class="gt_row gt_right gt_striped">40</td>
 <td headers="Babar Azam_SR" class="gt_row gt_right gt_striped">133.3</td>
-<td headers="Mohammad Rizwan_balls" class="gt_row gt_right gt_striped">51.0</td>
-<td headers="Mohammad Rizwan_score" class="gt_row gt_right gt_striped">70.0</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right gt_striped">51</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right gt_striped">70</td>
 <td headers="Mohammad Rizwan_SR" class="gt_row gt_right gt_striped">137.3</td>
-<td headers="Other Batter_balls" class="gt_row gt_right gt_striped">13.0</td>
-<td headers="Other Batter_score" class="gt_row gt_right gt_striped">17.0</td>
+<td headers="Other Batter_balls" class="gt_row gt_right gt_striped">13</td>
+<td headers="Other Batter_score" class="gt_row gt_right gt_striped">17</td>
 <td headers="Other Batter_SR" class="gt_row gt_right gt_striped">130.8</td></tr>
     <tr><td headers="over" class="gt_row gt_right">5</td>
-<td headers="Babar Azam_balls" class="gt_row gt_right">23.0</td>
-<td headers="Babar Azam_score" class="gt_row gt_right">22.0</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right">23</td>
+<td headers="Babar Azam_score" class="gt_row gt_right">22</td>
 <td headers="Babar Azam_SR" class="gt_row gt_right">95.7</td>
-<td headers="Mohammad Rizwan_balls" class="gt_row gt_right">39.0</td>
-<td headers="Mohammad Rizwan_score" class="gt_row gt_right">55.0</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right">39</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right">55</td>
 <td headers="Mohammad Rizwan_SR" class="gt_row gt_right">141.0</td>
-<td headers="Other Batter_balls" class="gt_row gt_right">32.0</td>
-<td headers="Other Batter_score" class="gt_row gt_right">27.0</td>
+<td headers="Other Batter_balls" class="gt_row gt_right">32</td>
+<td headers="Other Batter_score" class="gt_row gt_right">27</td>
 <td headers="Other Batter_SR" class="gt_row gt_right">84.4</td></tr>
     <tr><td headers="over" class="gt_row gt_right gt_striped">6</td>
-<td headers="Babar Azam_balls" class="gt_row gt_right gt_striped">23.0</td>
-<td headers="Babar Azam_score" class="gt_row gt_right gt_striped">35.0</td>
+<td headers="Babar Azam_balls" class="gt_row gt_right gt_striped">23</td>
+<td headers="Babar Azam_score" class="gt_row gt_right gt_striped">35</td>
 <td headers="Babar Azam_SR" class="gt_row gt_right gt_striped">152.2</td>
-<td headers="Mohammad Rizwan_balls" class="gt_row gt_right gt_striped">45.0</td>
-<td headers="Mohammad Rizwan_score" class="gt_row gt_right gt_striped">85.0</td>
+<td headers="Mohammad Rizwan_balls" class="gt_row gt_right gt_striped">45</td>
+<td headers="Mohammad Rizwan_score" class="gt_row gt_right gt_striped">85</td>
 <td headers="Mohammad Rizwan_SR" class="gt_row gt_right gt_striped">188.9</td>
-<td headers="Other Batter_balls" class="gt_row gt_right gt_striped">28.0</td>
-<td headers="Other Batter_score" class="gt_row gt_right gt_striped">34.0</td>
+<td headers="Other Batter_balls" class="gt_row gt_right gt_striped">28</td>
+<td headers="Other Batter_score" class="gt_row gt_right gt_striped">34</td>
 <td headers="Other Batter_SR" class="gt_row gt_right gt_striped">121.4</td></tr>
   </tbody>
   
   
 </table>
 </div>
+</div>
+<div id="conclusion" class="section level1">
+<h1 id = "956">Conclusion</h1>
 <p>As we can see from the data, the two openers really pick up the pace after going relatively slow in the first two overs. The only anomaly is Babar’s 5th over SR. We can also see, that they have been the ones to do the bulk of the scoring at a higher SR than the “Other batter” which means that our hypothesis of them making up for taking things slow early on is true. For the most part, their SRs are better than the batters coming later (which makes sense as the new batter will take a bit of time to acclimatize to the conditions).</p>
 <p>Therefore, we can conclude that <em>much</em> of the criticism <em>related to Powerplay</em> on the two Pak openers has been unfair. However, the evidence doesn’t suggest that batting resources are being utilized optimally when Pak is batting first. Pak may be able to benefit from a batter who starts hitting from the first over which could allow them to post higher PP scores, leading to a higher totals. It may also be the case, that the openers slow down too much after the Powerplay ends (playing the anchor role) and that may be the real area of concern.</p>
+</div>
+<div id="next-steps" class="section level1">
+<h1 id = "961">Next Steps</h1>
 <p>In the next part we’ll build correlations between Powerplay scores and final totals and try to determine the worth of a wicket in different overs to determine optimal style of play. Our hope will be to figure out optimal batting tactics for Pakistan when batting first.</p>
 </div>
 <div class="footnotes footnotes-end-of-document">

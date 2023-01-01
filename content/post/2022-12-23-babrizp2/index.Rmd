@@ -73,12 +73,15 @@ Pak_data <- filter(all_data, team1 == "Pakistan" | team2 == "Pakistan") %>%
 # Introduction
 At the end of part 1, we had come to the conclusion that our under-fire pair of openers was in fact an impactful combination, but we had not figured out whether their playing style and strategy was the best use of the team's resources. To do that, we realized that we'd have to devise a method to evaluate the the trade-off between Strike Rate and average.
 
+# Setting up
 One way to start our analysis could be to look at the other teams' first wicket average/SR for the openers. The first-wicket stats will give us an idea of how different teams approach opening batting in T20Is. We will also pull up some stats covering the the end of the Powerplay, because that's the major area of criticism on the two openers, and they'll help us figure out how different approaches to opening stack up against each other.
 
+## Focusing on the first partnership
 To pull out these stats, we'll use the same technique as part 1, and ask `R` to tell us what was the average/SR for the first wicket, and what was the average/SR at the end of powerplay. We'll use the match ids from part 1, read in the files that are relevant from our data folder and pull the info out. Since, we have to do the same thing for 5 teams, it again makes sense to write a function once and call it with each team's name.
 
 However, we shouldn't use the sample from last time. That is because we are trying to assess batting performance free from any factor that can bias the results. One such factor is whether batting is done to set a target or to chase. Chasing can affect the approach of batters depending on the score, so we'll only use a sample where teams batted first. We'll again limit ourselves to the no. of games available for Babar and Rizwan where they opened which we'll calculate below.
 
+## Data Wrangling
 Pulling out the sample will require some work because our main `.csv` file does not contain information about which side batted first in a game. So, we'll use the `match_id` from the main file to read the individual match's scorecard. From the scorecard, we'll determine which side batted first. If our target team batted second, we'll discard that match from the sample and move onto the next `match_id`. For Pakistan's games, we'll also make sure that we're only looking at the games where Babar and Rizwan opened the batting.
 ```{r Pak_data}
 i <- 1
@@ -108,6 +111,7 @@ max_games <- dim(Pak_bat1)[1]
 
 Babar and Rizwan have opened `r dim(Pak_data)[1]` times and out of those they have batted first `r dim(Pak_bat1)[1]` times. So we'll limit the no. of games to that. Unfortunately, this is a small sample and we'll need to keep that in mind when we look at the stats.
 
+## Stat Extraction Function
 We'll build a common function once again for the top 5 teams which will take `match_id` from the main file and pull out desired stats from the match's scorecard file. We'll limit the no. of extractions to be the same as the no. of games played by Babar and Rizwan as openers batting first i.e. `r dim(Pak_bat1)[1]`. 
 
 ```{r avg/SR, include = TRUE, cache=TRUE}
@@ -186,6 +190,8 @@ team_f <- function(team = NULL, data = NULL, sample_size = NULL) {
 
 Once the function is ready, the rest is easy. We'll call the function for the top 5 teams and have it create output tables for us.
 
+
+# Result Tables
 ::: { style="overflow-x: auto"}
 ```{r results, include=TRUE, cache=TRUE}
 options(kableExtra.html.bsTable = TRUE)
@@ -226,21 +232,11 @@ We can draw some conclusions from our results *only about our sample of games* (
 3. We need to figure out *who* provides the acceleration towards the end of the Powerplay period. If it's the no.3 or later batter, then clearly Pak's approach is inefficient (when batting first) but if it's the surviving opener who accelerates, then it may be the case that taking some time early on enables the batter to understand the pitch and increase the tempo.
 4. The trade-off between SR and average is shown in the different approach taken by Pak compared to England and India. Both these teams go harder from the beginning and take more risks, so they ended up losing more wickets by the time the Powerplay was over. But they also scored more, particularly in the case of India. And 0.5 wicket may well be worth an extra 7 runs (comparing India to Pakistan) when only 120 balls are to be bowled.
 
+# Further Analysis
 So, now we'll try to figure out who accelerated the scoring for Pakistan in our sample of games. This would require some data wrangling: We already have the `match_id` for our sample, we'll use them to pull up the individual scorecard files. We'll look at the Powerplay over-by-over, take median stats for each over, then visualize how a median over played out in our sample. For ease, we'll designate the batters following Babar and Rizwan as "other batter", essentially amalgamating them into one entity. This will tell us whether the surviving opener accelerates, or the one who comes in after wickets fall.
 
 ```{r over-by-over, include=TRUE, cache=TRUE}
 filenames <- paste0(here("static", "data", "t20s_male_csv2", Pak_bat1$match_id), ".csv")
-
-#other2 <- function(y) {
-#  sapply(y, function(x) {
-#    if (grepl("Babar", x) | grepl("Rizwan", x)) {
-#      return(x)
-#    } else {
-#      return("Other batter")
-#    }
-#  }) %>%
-#    unname
-#}
 
 other <- function(x) {
   y <- c()
@@ -286,12 +282,12 @@ overs <- group_by(Pak_bat1_sc, match_id,over, striker) %>%
     tab_spanner_delim(.,delim="_",columns=-1)
   
 ```
-
-
+# Conclusion
 As we can see from the data, the two openers really pick up the pace after going relatively slow in the first two overs. The only anomaly is Babar's 5th over SR. We can also see, that they have been the ones to do the bulk of the scoring at a higher SR than the "Other batter" which means that our hypothesis of them making up for taking things slow early on is true. For the most part, their SRs are better than the batters coming later (which makes sense as the new batter will take a bit of time to acclimatize to the conditions).
 
 Therefore, we can conclude that *much* of the criticism *related to Powerplay* on the two Pak openers has been unfair. However, the evidence doesn't suggest that batting resources are being utilized optimally when Pak is batting first. Pak may be able to benefit from a batter who starts hitting from the first over which could allow them to post higher PP scores, leading to a higher totals. It may also be the case, that the openers slow down too much after the Powerplay ends (playing the anchor role) and that may be the real area of concern.
 
+# Next Steps
 In the next part we'll build correlations between Powerplay scores and final totals and try to determine the worth of a wicket in different overs to determine optimal style of play. Our hope will be to figure out optimal batting tactics for Pakistan when batting first.
 
 ```{r possible_idea_P3, include=FALSE}
