@@ -31,42 +31,10 @@ knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FAL
 This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <https://github.com/omertayyab/cric_blog_R>, for more details on using R Markdown, use link <http://rmarkdown.rstudio.com>].
 
 
-```{r Pakistan_matches, echo=FALSE, results='hide', cache=TRUE}
-
-all_data <- read_csv(here("static/data/alldata.csv"))
-# all_data <- fetch_cricsheet(type="match",
-#                            gender="male",
-#                            competition="t20is")
-all_data$date <- lubridate::ymd(all_data$date)
-
-`%!in%` <- Negate(`%in%`) # custom function that will come in handy later with filtering
-
-
-Rizwan_ID <- 323389 # found using find_player_id() function
-Babar_ID <- 348144
-
-Riz_data <- fetch_player_data(Rizwan_ID, matchtype = "t20", activity = "batting") %>%
-  arrange(Date) %>%
-  filter(Pos == 1 | Pos == 2)
-
-Bab_data <- fetch_player_data(Babar_ID, matchtype = "t20", activity = "batting") %>%
-  arrange(Date) %>%
-  filter(Pos == 1 | Pos == 2)
-
-# finding dates of games where they both played together to cross-ref with match ids table
-game_dates <- Bab_data$Date[match(Riz_data$Date, Bab_data$Date) %>% na.omit()]
-
-Pak_data <- filter(all_data, team1 == "Pakistan" | team2 == "Pakistan") %>%
-  filter(., team1 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
-  filter(., team2 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
-  filter(., date <= lubridate::ymd("2022-10-16")) %>% # T20 cup opening date
-  filter(., date %in% game_dates) 
-
-  
-#Pak_win <- Pak_data %>%
-#  filter(winner == "Pakistan") %>%
-#  dim() %>%
-#  .[1]
+```{r load_data_previous, echo=FALSE, results='hide'}
+all_data <- readRDS(here("static","data","R_objects","all_data.rds"))
+Pak_data <- readRDS(here("static","data","R_objects","Pak_data.rds"))
+`%!in%` <- Negate(`%in%`)
 ```
 
 
@@ -197,7 +165,7 @@ Once the function is ready, the rest is easy. We'll call the function for the to
 options(kableExtra.html.bsTable = TRUE)
 
 
-result <- map(
+result_wk1_pp <- map(
   .x = c("Pakistan","England", "India", "South Africa", "New Zealand"),
   .f = team_f,
   data = all_data,
@@ -205,21 +173,21 @@ result <- map(
 ) %>%
   bind_rows(.)
 
-result %>%
+result_wk1_pp %>%
   select(.,c(1:3,7)) %>%
   kbl(.,
       align = "c",
       digits=1,
-      col.names = gsub("_"," ",colnames(result)[c(1:3,7)])
+      col.names = gsub("_"," ",colnames(result_wk1_pp)[c(1:3,7)])
       ) %>%
   kable_styling(bootstrap_options = c("striped","hover"))
 
-result %>%
+result_wk1_pp %>%
   select(.,c(1,4:8)) %>%
   kbl(.,
       align = "c",
       digits=1,
-      col.names = gsub("_"," ",colnames(result)[c(1,4:8)])
+      col.names = gsub("_"," ",colnames(result_wk1_pp)[c(1,4:8)])
       ) %>%
   kable_styling(bootstrap_options = c("striped","hover"))
 ```
@@ -233,7 +201,7 @@ We can draw some conclusions from our results *only about our sample of games* (
 4. The trade-off between SR and average is shown in the different approach taken by Pak compared to England and India. Both these teams go harder from the beginning and take more risks, so they ended up losing more wickets by the time the Powerplay was over. But they also scored more, particularly in the case of India. And 0.5 wicket may well be worth an extra 7 runs (comparing India to Pakistan) when only 120 balls are to be bowled.
 
 # Further Analysis
-So, now we'll try to figure out who accelerated the scoring for Pakistan in our sample of games. This would require some data wrangling: We already have the `match_id` for our sample, we'll use them to pull up the individual scorecard files. We'll look at the Powerplay over-by-over, take median stats for each over, then visualize how a median over played out in our sample. For ease, we'll designate the batters following Babar and Rizwan as "other batter", essentially amalgamating them into one entity. This will tell us whether the surviving opener accelerates, or the one who comes in after wickets fall.
+So, now we'll try to figure out who accelerated the scoring for Pakistan in our sample of games. This would require some data wrangling: We already have the `match_id` for our sample, we'll use them to pull up the individual scorecard files. We'll look at the Powerplay over-by-over, aggregate the stats for each over, then visualize how a median over played out in our sample. For ease, we'll designate the batters following Babar and Rizwan as "other batter", essentially amalgamating them into one entity. This will tell us whether the surviving opener accelerates, or the one who comes in after wickets fall.
 
 ```{r over-by-over, include=TRUE, cache=TRUE}
 filenames <- paste0(here("static", "data", "t20s_male_csv2", Pak_bat1$match_id), ".csv")
@@ -276,10 +244,11 @@ overs <- group_by(Pak_bat1_sc, match_id,over, striker) %>%
   overs %>% 
     ungroup %>% 
     gt %>% 
+    tab_options(table.width = "100%") %>% 
     tab_header(title="Over-by-over breakdown") %>% 
-    fmt_number(.,columns=c(4,7,10),decimals=1) %>%
+    fmt_number(columns=c(4,7,10),decimals=1) %>%
     opt_row_striping(row_striping = TRUE) %>%
-    tab_spanner_delim(.,delim="_",columns=-1)
+    tab_spanner_delim(delim="_",columns=-1)
   
 ```
 # Conclusion
@@ -288,7 +257,14 @@ As we can see from the data, the two openers really pick up the pace after going
 Therefore, we can conclude that *much* of the criticism *related to Powerplay* on the two Pak openers has been unfair. However, the evidence doesn't suggest that batting resources are being utilized optimally when Pak is batting first. Pak may be able to benefit from a batter who starts hitting from the first over which could allow them to post higher PP scores, leading to a higher totals. It may also be the case, that the openers slow down too much after the Powerplay ends (playing the anchor role) and that may be the real area of concern.
 
 # Next Steps
-In the next part we'll build correlations between Powerplay scores and final totals and try to determine the worth of a wicket in different overs to determine optimal style of play. Our hope will be to figure out optimal batting tactics for Pakistan when batting first.
+In the next part we'll try to find out the strength of correlations between Powerplay scores and Final scores, and try to determine the worth of a wicket in different phases of an innings to determine optimal style of play. We'll not limit ourselves only to the Powerplay as we have clearly shown that (at least in our sample) that Pak is fairly close to other teams. Our hope will be to figure out optimal batting tactics for Pakistan when batting first across different phases of an innings.
+
+```{r useful_data_save, include=FALSE}
+#Saving data for use in later posts
+saveRDS(overs, file = here("static","data","R_objects","overs.rds"))
+saveRDS(result_wk1_pp, file = here("static","data","R_objects","result_wk1_pp.rds"))
+```
+
 
 ```{r possible_idea_P3, include=FALSE}
 # Building a measure for that trade-off is a little tricky. This is because the trade-off is sensitive to several factors. One example of a factor is the context of the match. Consider the following examples:

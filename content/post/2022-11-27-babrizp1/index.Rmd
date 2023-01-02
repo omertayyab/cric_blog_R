@@ -93,10 +93,10 @@ Pak_data <- filter(all_data, team1 == "Pakistan" | team2 == "Pakistan") %>%
   filter(., team1 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
   filter(., team2 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
   filter(., date <= lubridate::ymd("2022-10-16")) %>% # T20 cup opening date
-  filter(., date %in% game_dates) %>%
-  tail(25)
+  filter(., date %in% game_dates) 
 
-Pak_win <- Pak_data %>%
+Pak_win <- Pak_data %>% 
+  tail(25) %>%
   filter(winner == "Pakistan") %>%
   dim() %>%
   .[1]
@@ -110,11 +110,13 @@ To guage impact of a player, we can look at the "Player of the Match" award as a
 We can easily ask R to pull up to see who the Players of the match were in our filtered data. 
 ``` {r start_stats, echo=TRUE, results='hide'}
 Bab_POM <- Pak_data %>%
+  tail(25) %>%
   filter(str_detect(player_of_match, "Babar")) %>%
   dim() %>%
   .[1]
 
 Riz_POM <- Pak_data %>%
+  tail(25) %>%
   filter(str_detect(player_of_match, "Rizwan")) %>%
   dim() %>%
   .[1]
@@ -211,3 +213,8 @@ This brings us to the fundamental question of T20 batting performance measuremen
 
 In the next part, we will try to come up with some measures to assess T20 batting and dissect data further to check how impactful the Babar-Rizwan partnership has been. The goal would be to test if there might be some truth to the hypothesis that their batting method leads to less success for the team.
 
+```{r data_save, include=FALSE}
+#Saving data for use in later posts
+saveRDS(all_data, file = here("static","data","R_objects","all_data.rds"))
+saveRDS(Pak_data, file = here("static","data","R_objects","Pak_data.rds"))
+```

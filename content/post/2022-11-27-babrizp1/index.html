@@ -82,10 +82,10 @@ Pak_data &lt;- filter(all_data, team1 == &quot;Pakistan&quot; | team2 == &quot;P
   filter(., team1 %!in% c(&quot;Namibia&quot;, &quot;Hong Kong&quot;, &quot;Scotland&quot;, &quot;Netherlands&quot;)) %&gt;%
   filter(., team2 %!in% c(&quot;Namibia&quot;, &quot;Hong Kong&quot;, &quot;Scotland&quot;, &quot;Netherlands&quot;)) %&gt;%
   filter(., date &lt;= lubridate::ymd(&quot;2022-10-16&quot;)) %&gt;% # T20 cup opening date
-  filter(., date %in% game_dates) %&gt;%
-  tail(25)
+  filter(., date %in% game_dates) 
 
-Pak_win &lt;- Pak_data %&gt;%
+Pak_win &lt;- Pak_data %&gt;% 
+  tail(25) %&gt;%
   filter(winner == &quot;Pakistan&quot;) %&gt;%
   dim() %&gt;%
   .[1]</code></pre>
@@ -97,11 +97,13 @@ Pak_win &lt;- Pak_data %&gt;%
 <p>To guage impact of a player, we can look at the “Player of the Match” award as a start. It is a crude metric, but not so bad when we’re just starting out our data analysis.
 We can easily ask R to pull up to see who the Players of the match were in our filtered data.</p>
 <pre class="r"><code>Bab_POM &lt;- Pak_data %&gt;%
+  tail(25) %&gt;%
   filter(str_detect(player_of_match, &quot;Babar&quot;)) %&gt;%
   dim() %&gt;%
   .[1]
 
 Riz_POM &lt;- Pak_data %&gt;%
+  tail(25) %&gt;%
   filter(str_detect(player_of_match, &quot;Rizwan&quot;)) %&gt;%
   dim() %&gt;%
   .[1]
@@ -110,7 +112,7 @@ pak_t &lt;- tibble(team=&quot;Pakistan&quot;,openers_POM=Bab_POM+Riz_POM,matches
 <p>We see that Babar &amp; Rizwan combined for a total of 6 awards (2 and 4 respectively)</p>
 </div>
 <div id="other-top-teams" class="section level1">
-<h1 id = "113">Other Top teams</h1>
+<h1 id = "115">Other Top teams</h1>
 <p>In order to compare, we can run the same analysis for other top teams (I’m limiting the selection to top 5 ranked teams as of writing this blog which include India, England, New Zealand and S. Africa alongside Pakistan)</p>
 <p>Since we’re not comparing to any specific opening pair and there may have been changes at the top during last 25 games for some of these teams, we have to figure out how often opening batters won the Player of the match award. This changes the coding for our analysis a little bit (compared to above) because we’ll select the last 25 games for a team, filter out the ones that the team won, pull up the CSVs (which have ball-by-ball data) of those games and from those check how often either opener was PoM.</p>
 <p>Because we want to do the same thing for multiple teams, it makes sense to write the code just the one time as a function, which can be run on different teams. Otherwise, we’d have to copy paste it every time and change the name of the team in the code manually.</p>
@@ -254,7 +256,7 @@ New Zealand
 </div>
 </div>
 <div id="results" class="section level1">
-<h1 id = "257">Results</h1>
+<h1 id = "259">Results</h1>
 <p>So, we can see that Babar and Rizwan have performed better than all other top teams’ opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.</p>
 <ol style="list-style-type: decimal">
 <li>Babar and Rizwan form an impactful partnership at the top.</li>
@@ -268,7 +270,7 @@ New Zealand
 <p>We know that Babar and Rizwan have lesser Strike Rates than a pair like Buttler and Hales, and they trade it off with their higher consistency (i.e. less chances of getting out for a low score). But is consistency of that order needed in a T20 game? Is an average of 50 with SR of 120 better than an average of 35 with SR of 170? Where and how do we draw the lines?</p>
 </div>
 <div id="next-steps" class="section level1">
-<h1 id = "271">Next Steps</h1>
+<h1 id = "273">Next Steps</h1>
 <p>This brings us to the fundamental question of T20 batting performance measurement: How to reconcile the trade-off between consistency vs explosiveness (average vs SR). Too low an average with a high SR won’t matter because the impact on games will be minimal. Too high an average with a low SR leads to a similar but worse problem (low impact as well as leaving less balls to play with for other batters)</p>
 <p>In the next part, we will try to come up with some measures to assess T20 batting and dissect data further to check how impactful the Babar-Rizwan partnership has been. The goal would be to test if there might be some truth to the hypothesis that their batting method leads to less success for the team.</p>
 </div>
