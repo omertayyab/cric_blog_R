@@ -15,7 +15,7 @@
   <div class="archive">
     {{ $pages := .Pages }}
     {{ if .IsHome }}
-    {{ $pages = .Site.RegularPages }}
+    {{ $pages = .Site.Sections }}
     {{ end }}
     {{ range (where $pages "Section" "!=" "").GroupByDate "2006" }}
     <h2 class="archive-title">{{ .Key }}</h2>
