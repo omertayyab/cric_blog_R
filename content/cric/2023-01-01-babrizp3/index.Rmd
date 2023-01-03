@@ -1,0 +1,55 @@
+---
+title: The Babar Rizwan Question, Part 3
+author: OT
+date: '2023-01-01'
+slug: BabRizP3
+categories:
+  - analysis
+  - cricket
+  - data
+  - data science
+  - R
+tags:
+  - analysis
+  - cricket
+  - data
+  - data science
+  - plot
+  - R Markdown
+  - regression
+  - correlation
+---
+
+```{r setup, include=FALSE}
+library(here)
+library(cricketdata)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(blogdown)
+library(gt)
+
+knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FALSE)
+all_data <- readRDS(here("static","data","R_objects","all_data.rds"))
+Pak_data <- readRDS(here("static","data","R_objects","Pak_data.rds"))
+overs <- readRDS(here("static","data","R_objects","overs.rds"))
+result_wk1_pp <- readRDS(here("static","data","R_objects","result_wk1_pp.rds"))
+```
+
+This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <https://github.com/omertayyab/cric_blog_R>, for more details on using R Markdown, use link <http://rmarkdown.rstudio.com>].
+
+# Introduction
+
+At the end of the previous part, we had landed at the table below:
+```{r Pakistan_matches, echo=FALSE, cache=TRUE}
+
+overs %>%
+  ungroup %>% 
+  gt %>%
+  tab_options(table.width = "100%") %>% 
+  tab_header(title="Over-by-over breakdown") %>% 
+  fmt_number(.,columns=c(4,7,10),decimals=1) %>%
+  opt_row_striping(row_striping = TRUE) %>%
+  tab_spanner_delim(.,delim="_",columns=-1)
+  
+```

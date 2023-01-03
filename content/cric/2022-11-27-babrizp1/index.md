@@ -1,0 +1,254 @@
+---
+title: "The Babar Rizwan Question, Part 1"
+author: "OT"
+date: "2022-11-27"
+slug: BabRizP1
+categories:
+- data science
+- cricket
+- data
+- analysis
+tags:
+- data science
+- cricket
+- data
+- analysis
+---
+<script src="{{< blogdown/postref >}}index_files/kePrint/kePrint.js"></script>
+<link href="{{< blogdown/postref >}}index_files/lightable/lightable.css" rel="stylesheet" />
+<link href="{{< blogdown/postref >}}index_files/bsTable/bootstrapTable.min.css" rel="stylesheet" />
+<script src="{{< blogdown/postref >}}index_files/bsTable/bootstrapTable.js"></script>
+
+
+
+This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <https://github.com/omertayyab/cric_blog_R>, for more details on using R Markdown, use    link <http://rmarkdown.rstudio.com>].
+
+# Introduction
+
+In the lead up to the 2022 T20 World cup, the two Pakistani openers: Babar Azam and Mohammad Rizwan had been facing mounting criticism, despite being prolific run-makers. The basis of the criticism was their perceived slow batting and a lack of "intent", particularly during the Powerplay phase.
+
+At that time, I had thought of this analysis to figure out if there was merit in what the critics (most of them ex-players) were saying. Knowing Pakistan cricket, there are always hidden agendas at play and egos driving antagonistic behaviour, so it seemed reasonable to me to turn to data as a neutral source of information. I also wanted an `R` project outside of work so here we are :)
+
+# Setting up
+
+## Data
+We start by downloading ball-by-ball match data for all T20Is for which data has been recorded by ESPN cricinfo (big thanks to them and cricsheet for providing this data freely to anyone). T20Is are a relatively young format so our archive isn't thant large. It is available at: 'https://cricsheet.org/downloads/t20s_male_csv2.zip'. Unzip the file and save the folder with its default name `t20s_male_csv2` in the working directory of your R environment. If you don't know your working directory, use the command `getwd()`.
+
+
+Each matchsheet is stored as a separate `.csv` file within the `.zip` archive. The files are named using a unique number which is called `'match ID'` (this will be important later). There's also a `Readme` file which lists the matches included in the archive. 
+
+## Pacakges
+Thanks to other cricket lovers, we already have a wonderful package available in R to download player/match specific data called `cricketdata` (I found the above mentioned link through this package). We'll load that along with `tidyverse` package to aid us in our data cleaning and analysis. To get nice looking output tables we'll also load `knitr` and `kableExtra`
+
+
+```r
+library(cricketdata)
+library(tidyverse)
+library(knitr)
+library(here)
+library(kableExtra)
+
+all_data <- read_csv(here("static/data/alldata.csv"))
+# all_data <- fetch_cricsheet(type="match",
+#                            gender="male",
+#                            competition="t20is")
+all_data$date <- lubridate::ymd(all_data$date)
+
+`%!in%` <- Negate(`%in%`) # custom function that will come in handy later with filtering
+```
+
+# Selecting files and cleaning the data
+
+Once we have the data and packages loaded, we can commence:
+
+The first part of the analysis is figuring out the sample size.
+We are concerned with Babar and Rizwan's relatively recent form, so let's (somewhat) arbitrarily choose 25 matches (as suggested by a friend of mine). This gives us a long enough time window so that the numbers are not overly affected by outlier performances.
+
+I thought of this analysis in the lead-up to the 2022 T20 World Cup for the pair's perceived lack of big impact runs for the team, and their possible over-consumption of balls. That's why I'm limiting the analysis to pre-world cup matches. However, just so that people looking for numbers including the world cup don't feel short-changed, I'll run another analysis at the end which includes world cup games where the two fared poorly.
+
+## Selecting Babar and Rizwan's 25 games
+
+We want to select the matches where Babar and Rizwan opened together. We have ball-by-ball data (as `.csv` files) for these matches somewhere within our downloaded and extracted archive, but we don't have a way of selecting our requisite `.csv` files to read into `R`. This is where the `cricketdata` package comes in.
+
+This package has a function that can provide us with the `match ID` by team and date of the game (and several other variables). The `.csv` files are named by their `match ID`, so we'll filter out Pakistan's games and get associated `match ID`.
+
+To further filter the games by Babar and Rizwan's opening pair, we need to filter out Pakistan's games where these two opened the batting (i.e. we need `match ID` for those games).There is no direct function to do that. So, we'll pull in player specific data (which has dates when these players played, as well as their batting position) and cross reference dates when these two played as openers, with dates of games from our table with `match ID`. 
+
+Once we have Pakistan's matches with Babar and Rizwan opening filtered out, we'll select the latest 25 games (disregarding games where Pakistan played Associate nations to avoid including games where it's easier to have a good performance).
+
+
+```r
+Rizwan_ID <- 323389 # found using find_player_id() function
+Babar_ID <- 348144
+
+Riz_data <- fetch_player_data(Rizwan_ID, matchtype = "t20", activity = "batting") %>%
+  arrange(Date) %>%
+  filter(Pos == 1 | Pos == 2)
+
+Bab_data <- fetch_player_data(Babar_ID, matchtype = "t20", activity = "batting") %>%
+  arrange(Date) %>%
+  filter(Pos == 1 | Pos == 2)
+
+# finding dates of games where they both played together to cross-ref with match ids table
+game_dates <- Bab_data$Date[match(Riz_data$Date, Bab_data$Date) %>% na.omit()]
+
+Pak_data <- filter(all_data, team1 == "Pakistan" | team2 == "Pakistan") %>%
+  filter(., team1 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
+  filter(., team2 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
+  filter(., date <= lubridate::ymd("2022-10-16")) %>% # T20 cup opening date
+  filter(., date %in% game_dates) %>%
+  tail(25)
+
+Pak_win <- Pak_data %>%
+  filter(winner == "Pakistan") %>%
+  dim() %>%
+  .[1]
+```
+
+
+# We have our sample!
+So now we have our 25 matches and we can start some basic analysis. Let's look at Pak's win % in this sample size. Pak won *15* matches out of 25 *(60%)*. We'll keep this to a side for now and use it later when we build a comparison with other teams.
+
+To guage impact of a player, we can look at the "Player of the Match" award as a start. It is a crude metric, but not so bad when we're just starting out our data analysis.
+We can easily ask R to pull up to see who the Players of the match were in our filtered data. 
+
+```r
+Bab_POM <- Pak_data %>%
+  filter(str_detect(player_of_match, "Babar")) %>%
+  dim() %>%
+  .[1]
+
+Riz_POM <- Pak_data %>%
+  filter(str_detect(player_of_match, "Rizwan")) %>%
+  dim() %>%
+  .[1]
+
+pak_t <- tibble(team="Pakistan",openers_POM=Bab_POM+Riz_POM,matches_won=Pak_win, total_matches=25)
+```
+We see that Babar & Rizwan combined for a total of 6 awards (2 and 4 respectively)
+
+
+# Other Top teams 
+In order to compare, we can run the same analysis for other top teams (I'm limiting the selection to top 5 ranked teams as of writing this blog which include India, England, New Zealand and S. Africa alongside Pakistan)
+
+Since we're not comparing to any specific opening pair and there may have been changes at the top during last 25 games for some of these teams, we have to figure out how often opening batters won the Player of the match award. This changes the coding for our analysis a little bit (compared to above) because we'll select the last 25 games for a team, filter out the ones that the team won, pull up the CSVs (which have ball-by-ball data) of those games and from those check how often either opener was PoM.
+
+Because we want to do the same thing for multiple teams, it makes sense to write the code just the one time as a function, which can be run on different teams. Otherwise, we'd have to copy paste it every time and change the name of the team in the code manually.
+
+
+```r
+team_func <- function(team = NULL,data = NULL,games=NULL) {
+  team_data <- filter(data, team1 == team | team2 == team) %>%
+    filter(., team1 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
+    filter(., team2 %!in% c("Namibia", "Hong Kong", "Scotland", "Netherlands")) %>%
+    filter(., date <= lubridate::ymd("2022-10-16")) %>% # T20 cup opening date
+    tail(games)
+
+  team_POM <- filter(team_data, winner == team) %>%
+    select(., c(match_id, player_of_match))
+  
+  team_win <- team_POM %>%
+    dim() %>%
+    .[1]
+
+  filenames <- paste0(here("static","data", "t20s_male_csv2", team_POM$match_id), ".csv")
+
+  x1 <- list()
+  x1 <- lapply(filenames, read_csv)
+  x1 <- lapply(x1, filter, batting_team == team)
+
+  x1 <- map2(.x = x1, .y = team_POM$player_of_match, .f = ~ mutate(.data = .x, POM = .y))
+
+  c1 <- c()
+  for (i in 1:length(x1)) {
+    y <- slice(x1[[i]], 1)
+    if (y$striker == y$POM | y$non_striker == y$POM) {
+      c1 <- c(c1, i)
+    }
+  }
+
+  return(tibble(team=team,openers_POM=length(c1), matches_won=team_win, total_matches=games))
+}
+```
+
+::: { style="overflow-x: auto"}
+
+```r
+options(kableExtra.html.bsTable = TRUE)
+
+
+map(
+  .x = c("England", "India", "South Africa", "New Zealand"),
+  .f = team_func,
+  data = all_data,
+  games = 25
+) %>%
+  bind_rows(pak_t, .) %>%
+  kbl() %>%
+   kable_styling(bootstrap_options = c("striped","hover"))
+```
+
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+ <thead>
+  <tr>
+   <th style="text-align:left;"> team </th>
+   <th style="text-align:right;"> openers_POM </th>
+   <th style="text-align:right;"> matches_won </th>
+   <th style="text-align:right;"> total_matches </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Pakistan </td>
+   <td style="text-align:right;"> 6 </td>
+   <td style="text-align:right;"> 15 </td>
+   <td style="text-align:right;"> 25 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> England </td>
+   <td style="text-align:right;"> 5 </td>
+   <td style="text-align:right;"> 15 </td>
+   <td style="text-align:right;"> 25 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> India </td>
+   <td style="text-align:right;"> 4 </td>
+   <td style="text-align:right;"> 17 </td>
+   <td style="text-align:right;"> 25 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> South Africa </td>
+   <td style="text-align:right;"> 3 </td>
+   <td style="text-align:right;"> 17 </td>
+   <td style="text-align:right;"> 25 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> New Zealand </td>
+   <td style="text-align:right;"> 1 </td>
+   <td style="text-align:right;"> 14 </td>
+   <td style="text-align:right;"> 25 </td>
+  </tr>
+</tbody>
+</table>
+:::
+So, we can see that Babar and Rizwan have performed better than all other top teams' opening pairs in terms of having an impact. We can draw some conclusions from this initial analysis.
+
+1. Babar and Rizwan form an impactful partnership at the top.
+2. They have an impact on team victories more than other openers.
+
+Does the data also suggest that the criticism is completely unfounded? 
+
+The answer is: We can't say that yet. Remember when I said PoM is a crude measure? That's exactly why. While PoM award count gives us initial evidence of the Babar and Rizwan partnership being very impactful, it could also be a function of the strategy employed by the team.
+
+The strategy of Pak's batting has been such that it places the responsibility of the bulk of run scoring on these two, i.e. the team's batting is centered around them. As a result, when Pak wins through batting, these two have a very high chance of claiming the PoM award because they are fulfilling their role. But this also means they have to take lesser risks compared to an all-out attack approach and that might be ultimately harming the team's chances of accumulating wins over a period of time.
+
+It could be the case that this strategy may be a poor use of batting resources available to Pakistan, i.e. run scoring responsibilities could be better allocated across all batters by asking Rizwan and Babar to play at a higher tempo. The idea would be to increase SR at the cost of batting average.
+
+There is some merit to this argument; when we look at the no.of wins Pak accumulated in our sample, it is in the middle of the pack (tied with England). Even if Pak was at the top of the wins list, there could still be the possibility of being even better with a different method of play at the top.
+
+We know that Babar and Rizwan have lesser Strike Rates than a pair like Buttler and Hales, and they trade it off with their higher consistency (i.e. less chances of getting out for a low score). But is consistency of that order needed in a T20 game? Is an average of 50 with SR of 120 better than an average of 35 with SR of 170? Where and how do we draw the lines?
+
+This brings us to the fundamental question of T20 batting performance measurement: How to reconcile the trade-off between consistency vs explosiveness (average vs SR). Too low an average with a high SR won't matter because the impact on games will be minimal. Too high an average with a low SR leads to a similar but worse problem (low impact as well as leaving less balls to play with for other batters)
+
+In the next part, we will try to come up with some measures to assess T20 batting and dissect data further to check how impactful the Babar-Rizwan partnership has been. The goal would be to test if there might be some truth to the hypothesis that their batting method leads to less success for the team.
+
