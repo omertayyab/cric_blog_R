@@ -26,7 +26,6 @@ library(cricketdata)
 library(tidyverse)
 library(knitr)
 library(kableExtra)
-library(blogdown)
 library(gt)
 
 knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FALSE)
@@ -34,22 +33,70 @@ all_data <- readRDS(here("static","data","R_objects","all_data.rds"))
 Pak_data <- readRDS(here("static","data","R_objects","Pak_data.rds"))
 overs <- readRDS(here("static","data","R_objects","overs.rds"))
 result_wk1_pp <- readRDS(here("static","data","R_objects","result_wk1_pp.rds"))
+`%!in%` <- Negate(`%in%`)
 ```
 
-This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my Github <https://github.com/omertayyab/cric_blog_R>, for more details on using R Markdown, use link <http://rmarkdown.rstudio.com>].
+This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my [GitHub](https://github.com/omertayyab/cric_blog_R). For more details on using R Markdown, use this [link](http://rmarkdown.rstudio.com)].
 
 # Introduction
 
-At the end of the previous part, we had landed at the table below:
+In the previous part, we had scene the table below:
 ```{r Pakistan_matches, echo=FALSE, cache=TRUE}
+options(kableExtra.html.bsTable = TRUE)
 
-overs %>%
-  ungroup %>% 
-  gt %>%
-  tab_options(table.width = "100%") %>% 
-  tab_header(title="Over-by-over breakdown") %>% 
-  fmt_number(.,columns=c(4,7,10),decimals=1) %>%
-  opt_row_striping(row_striping = TRUE) %>%
-  tab_spanner_delim(.,delim="_",columns=-1)
-  
+result_wk1_pp %>%
+  select(.,c(1,4:8)) %>%
+  kbl(.,
+      align = "c",
+      digits=1,
+      col.names = gsub("_"," ",colnames(result_wk1_pp)[c(1,4:8)])
+      ) %>%
+  kable_styling(bootstrap_options = c("striped","hover"))
+```
+We had concluded that the Powerplay impact of the openers was quite close to other top teams so it must actually be the later phases of the innings where Pakistan is lacking (as shown by the difference in final scores). However, we'd still like to quantify how PP scores affect the final score, so we'll look at that question.
+
+We can also see here that Pakistan actually lost more wickets than other top teams at the end of their innings, while losing less in the Powerplay. All of this information points to the direction of Pak's usage of the overs 7-20. So, now we'll focus our analysis on that part as well.
+
+# Powerplay and Final Score
+
+Finally we get to do some data science after all the data wrangling of the last 2 parts! We will start off slowly. It is reasonable to expect that the final total of a team must have some positive correlation with the score in the Powerplay. So, we'll take the 2 elements of the PP score (i.e. score and wickets) as independent variables and run a regression against the final score (set as the dependent variable).
+
+## Setting up the regression
+But before we do that we have to check that the two independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. While we can look at the entire history of T20I games for our top 5 teams, we'll limit ourselves to the last 3 years arbitrarily. We are doing this because the game changes quite a bit over 5-10 years and we want most players to be the same to minimize variation in our regression due to changes in personnel/rules/tactics etc. We'll also limit ourselves to first innings because during the 2nd innings the final score is limited to the target
+
+```{r corr_wkt_score}
+corr_games <-
+  all_data %>%
+  arrange(.,date) %>%
+  filter(outcome != "no result" | is.na(outcome) ) %>%
+  filter(date >= lubridate::ymd("2020-01-01") & date <= lubridate::ymd("2022-10-16")) %>%
+  filter( team1 %in% c("Pakistan","England","India","New Zealand", "South Africa")) %>%
+  filter( team2 %in% c("Pakistan","England","India","New Zealand", "South Africa")) %>%
+  select(.,-season) %>%
+  select(c(1:11))
+
+filenames <- paste0(here("static", "data", "t20s_male_csv2", corr_games$match_id), ".csv")
+
+corr_data <- list()
+corr_data <- 
+  lapply(filenames,read_csv,show_col_types=FALSE) %>%
+  lapply(.,filter, innings==1) %>%
+  lapply(., 
+         mutate, total = cumsum(runs_off_bat + extras),
+         wickets=ifelse(is.na(player_dismissed),0,1)
+         ) %>%
+  lapply(.,mutate, wickets = cumsum(wickets)) %>%
+  lapply(.,filter, between(ball,5,6) | ball == max(ball)) %>%
+  lapply(slice, (n()-1):n()) %>%
+  lapply(select,-season) %>%
+  bind_rows()
+
+x <- corr_data %>%
+  filter(ball < 6)
+
+y <- corr_data %>%
+  filter(ball > 6)
+
+
+
 ```
