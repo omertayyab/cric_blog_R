@@ -27,6 +27,7 @@ library(tidyverse)
 library(knitr)
 library(kableExtra)
 library(gt)
+library(ggplot2)
 
 knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FALSE)
 all_data <- readRDS(here("static","data","R_objects","all_data.rds"))
@@ -59,19 +60,32 @@ We can also see here that Pakistan actually lost more wickets than other top tea
 
 # Powerplay and Final Score
 
-Finally we get to do some data science after all the data wrangling of the last 2 parts! We will start off slowly. It is reasonable to expect that the final total of a team must have some positive correlation with the score in the Powerplay. So, we'll take the 2 elements of the PP score (i.e. score and wickets) as independent variables and run a regression against the final score (set as the dependent variable).
+Finally we get to do some data science after all the data wrangling of the last 2 parts! We will start off slowly. It is reasonable to expect that the final total of a team must have some positive correlation with the score in the Powerplay. So, we'll take the 2 elements of the PP score that could have positive correlation with the final total (i.e. runs and wickets remaining) as independent variables and run some type of regression (we'll figure this out below) against the final score (set as the dependent variable).
 
 ## Setting up the regression
-But before we do that we have to check that the two independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. While we can look at the entire history of T20I games for our top 5 teams, we'll limit ourselves to the last 3 years arbitrarily. We are doing this because the game changes quite a bit over 5-10 years and we want most players to be the same to minimize variation in our regression due to changes in personnel/rules/tactics etc. We'll also limit ourselves to first innings because during the 2nd innings the final score is limited to the target
+Before we run a regression,we have to check that the independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. Since we are looking at a general relationship between Powerplay performance and final scores, we don't really have any limitations and we can look at the entire history of T20I games for our top 5 teams plus West Indies, Australia and Sri Lanka (all have been at or near the top even though they might not be there in recent times). Our dataset will have the team names as a column so we can filter them out later if needed and the advantage is that we get a larger sample size which can (hopefully) make our prediction model stronger.
 
-```{r corr_wkt_score}
+However, we have to limit ourselves to first innings only because during the 2nd innings, the final score is an upper bound and also a big factor in determining the chasing team's approach. We want to avoid that biasing our sample.
+
+# Putting the Dataset together
+We have more than 1600 `.csv` files with ball-by-ball data in our collection for all T20Is played since the start of the format. From those, we only really need three things:
+1. Powerplay total
+2. Powerplay wickets
+3. Final Score
+
+So, we'll first filter the `match_id` from our master file which has some summary information about each game we have ball-by-ball data for. We'll use the master file to filter out the games containing our chosen 8 teams where they played against each other. This will ensure that the quality of teams remains consistent in any given contest.
+
+Once we have the `match_id` column that we need, we'll use it to call each `.csv` as they are named according to their `match_id`. We'll read each file and pull out the required three bits of information. When we have the three bits, we'll split them into two tables, one for the end of the Powerplay and one for the final ball of the innings.
+
+
+```{r data_full}
 corr_games <-
   all_data %>%
   arrange(.,date) %>%
   filter(outcome != "no result" | is.na(outcome) ) %>%
-  filter(date >= lubridate::ymd("2020-01-01") & date <= lubridate::ymd("2022-10-16")) %>%
-  filter( team1 %in% c("Pakistan","England","India","New Zealand", "South Africa")) %>%
-  filter( team2 %in% c("Pakistan","England","India","New Zealand", "South Africa")) %>%
+  filter(date >= lubridate::ymd("1999-01-01") & date <= lubridate::ymd("2022-10-16")) %>%
+  filter( team1 %in% c("Pakistan","England","India","New Zealand", "South Africa", "Australia", "Sri Lanka", "West Indies")) %>%
+  filter( team2 %in% c("Pakistan","England","India","New Zealand", "South Africa", "Australia", "Sri Lanka", "West Indies")) %>%
   select(.,-season) %>%
   select(c(1:11))
 
@@ -82,9 +96,12 @@ corr_data <-
   lapply(filenames,read_csv,show_col_types=FALSE) %>%
   lapply(.,filter, innings==1) %>%
   lapply(., 
-         mutate, total = cumsum(runs_off_bat + extras),
-         wickets=ifelse(is.na(player_dismissed),0,1)
+         mutate,
+         total = cumsum(runs_off_bat + extras),
+         wickets=ifelse(is.na(player_dismissed),0,1),
+         balls = as.integer(ball) * 6 + (ball - as.integer(ball)) * 10,
          ) %>%
+  #lapply(.,mutate, wkt_balls = ifelse(wickets==0,0,(120-balls) * (wickets+1))) %>%
   lapply(.,mutate, wickets = cumsum(wickets)) %>%
   lapply(.,filter, between(ball,5,6) | ball == max(ball)) %>%
   lapply(slice, (n()-1):n()) %>%
@@ -93,10 +110,31 @@ corr_data <-
 
 x <- corr_data %>%
   filter(ball < 6)
+x$wickets = 10-x$wickets
 
 y <- corr_data %>%
   filter(ball > 6)
 
-
-
+ds <- tibble(id= y$match_id, final=y$total, PP_score = x$total, PP_wkt=x$wickets, t=x$total*x$wickets, team=y$batting_team)
 ```
+
+# Analysis
+Now that we have the data all set up, we can start the analysis. The first order of business is figuring out the correlation between the independent variables. This is pretty simple in `R`, all we need is the `cor.test()` function which is part of the `stats` pacakge loaded by default in `R` when it starts.
+
+## Correlation between variables
+``` {r correlation, include= TRUE}
+cor.test(x$wickets, x$total)
+```
+As we can see, the correlation between the variables that are supposed to be independent is quite high. We have two options here:
+1. Drop one of the variables, or
+2. Combine them into a new variable
+We'll take the second option as we do not want to rid ourselves of any predictive power of one of the variables. To combine the two variables, we'll simply multiply them and create a new variable called `t`. This new variable works well enough for our purpose, because it  allows us to have both variables present in our regression. But it also means that we can't separate the impact of each element. At this point, we're happy with the trade-off but this can be revisited later.
+
+## Building the Regression
+
+Now that we have dealt with the issue of correlated variables, we can turn our attention to the type of regression that'll be best for our purposes. Let's first take a look at the data visually to get an idea of what we're dealing with.
+``` {r include=TRUE}
+ds %>% ggplot() +
+    geom_point(aes(x = PP_score, y = final)) 
+```
+
