@@ -155,29 +155,79 @@ In order to test the forecasting accuracy of our models, we'll have to split our
 
 After splitting the data we'll build models of the types discussed above and measure them against each other according to their forecast accuracy. Since we'll be doing the same thing after the models are created, we'll again use the function building approach so that we don't have to write the same code every time.
 
-```{r models, echo=TRUE, cache =TRUE}
-#splitting data
-train <- sample_frac(ds,0.7)
-test <- anti_join(ds, train,by="id")
+We'll repeat this whole exercise (i.e. splitting the data, estimating the model and then testing) a 100 times as well. This is so that any bias in statistics that could creep in because a one-time sample being more favorable to any particular method is removed. Our sample is not too large so doing this 100 times should be enough.
 
-#creating models
-model_lm <- lm(final~t, data=train)
-model_loess <- loess(final ~ t, data= train, control=loess.control(surface="direct"))
-model_knn <- caret::knnreg(formula=final~t,data=train)
-model_svm <- e1071::svm(final~PP_score+PP_wkt,data=train, kernel="radial", epsilon=.1)
-model_gam<- mgcv::gam(final~s(t, bs='ps', sp=0.6), data=train)
+```{r models, echo=TRUE, cache=TRUE}
+#install caret, e1071, mgcv packages before running chunk
 
-all_mods <- lst(model_lm, model_loess, model_knn, model_svm, model_gam)
-
-#function to test prediction accuracy
-pred_acc <- function(model,data) {
-  preds <- predict(model,newdata=data) %>% unname
-  errors <- (placeholder = data$final - preds)
-  return(errors)
+# function to test prediction accuracy
+pred_acc <- function(model, data) {
+    preds <- predict(model, newdata = data) %>% unname()
+    errors <- (placeholder <- data$final - preds)
+    return(errors)
 }
 
-all_errors <- lapply(all_mods,pred_acc,test) %>% bind_cols
+all_median <- list()
+all_mean <- list()
+for (i in 1:100) {
+  # splitting data
+  set.seed(i) # set seed for reproducability
+  train <- slice_sample(ds, prop=0.7)
+  test <- anti_join(ds, train, by = "id")
 
-# get table
-all_errors %>% mutate_all(abs) %>% summarize_all(median)
-all_errors %>% mutate_all(abs) %>% summarize_all(mean)
+  # creating models
+  model_lm <- lm(final ~ t, data = train)
+  model_loess <- loess(final ~ t, data = train, control = loess.control(surface = "direct"))
+  model_knn <- caret::knnreg(final ~ t, data = train)
+  model_svm <- e1071::svm(final ~ t,
+                          data = train, kernel = "radial", epsilon = .1)
+  model_gam <- mgcv::gam(final ~ s(t, bs = "ts"),
+                         data = train, method="REML")
+
+  all_mods <- lst(model_lm, model_loess, model_knn, model_svm, model_gam)
+
+ 
+  sing_errors <- lapply(all_mods, pred_acc, test) %>% bind_cols()
+
+  # get table
+  all_median[[i]] <- (sing_errors %>%
+    mutate_all(abs) %>%
+    summarize_all(median))
+  all_mean[[i]] <- sing_errors %>%
+    mutate_all(abs) %>%
+    summarize_all(mean)
+}
+```
+
+```{r tables_errors, echo=FALSE}
+table_err <- all_median %>%
+  bind_rows() %>%
+  summarize_all(mean)
+
+table_err %>%
+  gt %>% 
+  tab_options(table.width = "100%") %>% 
+  tab_header(title="Average of Median Absolute Errors") %>% 
+  fmt_number(columns=everything(),decimals=1) %>%
+  opt_row_striping(row_striping = TRUE) %>%
+  cols_label(.list = structure(as.list(str_remove(colnames(table_err), ".*_")),
+                               names = colnames(table_err)
+                               )
+             )
+
+table_err <-all_mean %>%
+  bind_rows() %>%
+  summarize_all(mean)
+
+table_err %>%
+  gt %>% 
+  tab_options(table.width = "100%") %>% 
+  tab_header(title="Average of Mean Absolute Errors") %>% 
+  fmt_number(columns=everything(),decimals=1) %>%
+  opt_row_striping(row_striping = TRUE) %>%
+  cols_label(.list = structure(as.list(str_remove(colnames(table_err), ".*_")),
+                               names = colnames(table_err)
+                               )
+             )
+```
+
