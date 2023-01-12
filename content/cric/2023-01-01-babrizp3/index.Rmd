@@ -18,6 +18,8 @@ tags:
   - R Markdown
   - regression
   - correlation
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -28,6 +30,7 @@ library(knitr)
 library(kableExtra)
 library(gt)
 library(ggplot2)
+library(ggthemes)
 
 knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FALSE)
 all_data <- readRDS(here("static","data","R_objects","all_data.rds"))
@@ -79,7 +82,7 @@ So, we'll first filter the `match_id` from our master file which has summary inf
 Once we have the `match_id` column that we need, we'll use it to call each `.csv` as they are named according to their `match_id`. We'll read each file and pull out the required three bits of information. When we have the three bits, we'll split them into two tables, one for the end of the Powerplay and one for the final ball of the innings.
 
 
-```{r data_full}
+```{r data_full, cache=TRUE}
 corr_games <-
   all_data %>%
   arrange(.,date) %>%
@@ -137,7 +140,44 @@ We'll take the second option as we do not want to rid ourselves of any predictiv
 
 Now that we have dealt with the issue of correlated variables, we can turn our attention to the type of regression that'll be best for our purposes. Let's first take graph the data to get a visual idea of what we're dealing with.
 ``` {r include=TRUE}
-ds %>% ggplot() +
-    geom_point(aes(x = t, y = final)) 
+ds %>% ggplot(aes(x = t, y = final)) +
+  geom_point() +
+  geom_smooth(method="lm", formula= y~x) + 
+  theme_economist() 
 ```
+As we can clearly see, there is a linear trend present. However, we should also note the variance present alongside the trend. If we take any value of `t` and visualize the difference between the top and the bottom value on the y-axis, the difference is quite large. So, we should expect our linear model to not do very well in terms of having a high R<sup>2</sup> value. This makes sense too, because the Powerplay is just 6 overs out of 20 in an innings and even with field restrictions it can't be expected to fully dictate the outcome of an innings. 
 
+We'll try some non-linear, non-parametric methods as well to fit our data and see if they can do better than our simple model. Namely, we'll use loess regression, GAM regression, KNN means regression and SVM regression which are extensively used algorithms in the ML world (more for classification purposes, but also used as regressions).
+
+## Splitting Data
+
+In order to test the forecasting accuracy of our models, we'll have to split our data into two parts. The first part will be used to estimate the data, and the second part will be used to test the accuracy of the forecasts against actual values. We'll arbitrarily use a split of 70-30, as that's the first one that popped in my mind :)
+
+After splitting the data we'll build models of the types discussed above and measure them against each other according to their forecast accuracy. Since we'll be doing the same thing after the models are created, we'll again use the function building approach so that we don't have to write the same code every time.
+
+```{r models, echo=TRUE, cache =TRUE}
+#splitting data
+train <- sample_frac(ds,0.7)
+test <- anti_join(ds, train,by="id")
+
+#creating models
+model_lm <- lm(final~t, data=train)
+model_loess <- loess(final ~ t, data= train, control=loess.control(surface="direct"))
+model_knn <- caret::knnreg(formula=final~t,data=train)
+model_svm <- e1071::svm(final~PP_score+PP_wkt,data=train, kernel="radial", epsilon=.1)
+model_gam<- mgcv::gam(final~s(t, bs='ps', sp=0.6), data=train)
+
+all_mods <- lst(model_lm, model_loess, model_knn, model_svm, model_gam)
+
+#function to test prediction accuracy
+pred_acc <- function(model,data) {
+  preds <- predict(model,newdata=data) %>% unname
+  errors <- (placeholder = data$final - preds)
+  return(errors)
+}
+
+all_errors <- lapply(all_mods,pred_acc,test) %>% bind_cols
+
+# get table
+all_errors %>% mutate_all(abs) %>% summarize_all(median)
+all_errors %>% mutate_all(abs) %>% summarize_all(mean)
