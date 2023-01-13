@@ -1,7 +1,7 @@
 ---
 title: The Babar Rizwan Question, Part 3
 author: OT
-date: '2023-01-01'
+date: '2022-12-15'
 slug: BabRizP3
 categories:
   - analysis
@@ -18,6 +18,8 @@ tags:
   - R Markdown
   - regression
   - correlation
+editor_options: 
+  chunk_output_type: console
 ---
 
 <script src="{{< blogdown/postref >}}index_files/kePrint/kePrint.js"></script>
@@ -161,6 +163,1027 @@ New Zealand
 </div>
 <div id="powerplay-and-final-score" class="section level1">
 <h1>Powerplay and Final Score</h1>
+<p>Finally we get to do some data science after all the data wrangling of the last 2 parts! We will start off slowly. It is reasonable to expect that the final total of a team must have some positive correlation with the score in the Powerplay. So, we’ll take the 2 elements of the PP score that could have positive correlation with the final total (i.e. runs and wickets remaining) as independent variables and run some type of regression (we’ll figure this out below) against the final score (set as the dependent variable).</p>
+<div id="setting-up-the-regression" class="section level2">
+<h2>Setting up the regression</h2>
+<p>Before we run a regression,we have to check that the independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. Since we are looking at a general relationship between Powerplay performance and final scores, we don’t really have any limitations and we can look at the entire history of T20I games for our top 5 teams plus West Indies, Australia and Sri Lanka (all have been at or near the top even though they might not be there in recent times). Our dataset will have the team names as a column so we can filter them out later if needed and the advantage is that we get a larger sample size which can (hopefully) make our prediction model stronger.</p>
+<p>However, we have to limit ourselves to first innings only because during the 2nd innings, the final score has an upper bound (i.e. the target for the chasing team). This could be a big factor in determining the chasing team’s approach and we want to avoid that biasing our sample.</p>
+</div>
+</div>
+<div id="putting-the-dataset-together" class="section level1">
+<h1>Putting the Dataset together</h1>
+<p>We have more than 1600 <code>.csv</code> files with ball-by-ball data in our collection for all T20Is played since the start of the format. From those, we only really need three things:</p>
+<ol style="list-style-type: decimal">
+<li>Powerplay total</li>
+<li>Powerplay wickets</li>
+<li>Final Score</li>
+</ol>
+<p>So, we’ll first filter the <code>match_id</code> from our master file which has summary information about each game we have ball-by-ball data for. We’ll use the master file to filter out the games containing our chosen 8 teams where they played against each other. This will ensure that the quality of teams remains consistent.</p>
+<p>Once we have the <code>match_id</code> column that we need, we’ll use it to call each <code>.csv</code> as they are named according to their <code>match_id</code>. We’ll read each file and pull out the required three bits of information. When we have the three bits, we’ll split them into two tables, one for the end of the Powerplay and one for the final ball of the innings.</p>
+<pre class="r"><code>corr_games &lt;-
+  all_data %&gt;%
+  arrange(.,date) %&gt;%
+  filter(outcome != &quot;no result&quot; | is.na(outcome) ) %&gt;%
+  filter(date &gt;= lubridate::ymd(&quot;1999-01-01&quot;) &amp; date &lt;= lubridate::ymd(&quot;2022-10-16&quot;)) %&gt;%
+  filter( team1 %in% c(&quot;Pakistan&quot;,&quot;England&quot;,&quot;India&quot;,&quot;New Zealand&quot;, &quot;South Africa&quot;, &quot;Australia&quot;, &quot;Sri Lanka&quot;, &quot;West Indies&quot;)) %&gt;%
+  filter( team2 %in% c(&quot;Pakistan&quot;,&quot;England&quot;,&quot;India&quot;,&quot;New Zealand&quot;, &quot;South Africa&quot;, &quot;Australia&quot;, &quot;Sri Lanka&quot;, &quot;West Indies&quot;)) %&gt;%
+  select(.,-season) %&gt;%
+  select(c(1:11))
+
+filenames &lt;- paste0(here(&quot;static&quot;, &quot;data&quot;, &quot;t20s_male_csv2&quot;, corr_games$match_id), &quot;.csv&quot;)
+
+corr_data &lt;- list()
+corr_data &lt;- 
+  lapply(filenames,read_csv,show_col_types=FALSE) %&gt;%
+  lapply(.,filter, innings==1) %&gt;%
+  lapply(., 
+         mutate,
+         total = cumsum(runs_off_bat + extras),
+         wickets=ifelse(is.na(player_dismissed),0,1),
+         balls = as.integer(ball) * 6 + (ball - as.integer(ball)) * 10,
+         ) %&gt;%
+  #lapply(.,mutate, wkt_balls = ifelse(wickets==0,0,(120-balls) * (wickets+1))) %&gt;%
+  lapply(.,mutate, wickets = cumsum(wickets)) %&gt;%
+  lapply(.,filter, between(ball,5,6) | ball == max(ball)) %&gt;%
+  lapply(slice, (n()-1):n()) %&gt;%
+  lapply(select,-season) %&gt;%
+  bind_rows()
+
+x &lt;- corr_data %&gt;%
+  filter(ball &lt; 6)
+x$wickets = 10-x$wickets
+
+y &lt;- corr_data %&gt;%
+  filter(ball &gt; 6)
+
+ds &lt;- tibble(id= y$match_id, final=y$total, PP_score = x$total, PP_wkt=x$wickets, t=x$total*x$wickets, team=y$batting_team)</code></pre>
+</div>
+<div id="analysis" class="section level1">
+<h1>Analysis</h1>
+<p>Now that we have the data all set up, we can start the analysis. The first order of business is figuring out the correlation between the independent variables. This is pretty simple in <code>R</code>, all we need is the <code>cor.test()</code> function which is part of the <code>stats</code> pacakge loaded by default in <code>R</code> when it starts.</p>
+<div id="correlation-between-variables" class="section level2">
+<h2>Correlation between variables</h2>
+<pre class="r"><code>cor.test(x$wickets, x$total)</code></pre>
+<pre><code>## 
+## 	Pearson&#39;s product-moment correlation
+## 
+## data:  x$wickets and x$total
+## t = 13.882, df = 569, p-value &lt; 2.2e-16
+## alternative hypothesis: true correlation is not equal to 0
+## 95 percent confidence interval:
+##  0.4390685 0.5618639
+## sample estimates:
+##       cor 
+## 0.5030002</code></pre>
+<p>As we can see, the correlation between the variables that are supposed to be independent is quite high. We have two options here:</p>
+<ol style="list-style-type: decimal">
+<li>Drop one of the variables, or</li>
+<li>Combine them into a new variable</li>
+</ol>
+<p>We’ll take the second option as we do not want to rid ourselves of any predictive power of one of the variables. To combine the two variables, we’ll simply multiply them and create a new variable called <code>t</code>. This new variable works well enough for our purpose, because it allows us to have both variables present in our regression. But it also means that we can’t separate the impact of each element. At this point, we’re happy with the trade-off but this can be revisited later.</p>
+</div>
+<div id="building-the-regression" class="section level2">
+<h2>Building the Regression</h2>
+<p>Now that we have dealt with the issue of correlated variables, we can turn our attention to the type of regression that’ll be best for our purposes. Let’s first graph the data to get a visual idea of what we’re dealing with.</p>
+<pre class="r"><code>ds %&gt;% ggplot(aes(x = t, y = final)) +
+  geom_point() +
+  geom_smooth(method=&quot;lm&quot;, formula= y~x) + 
+  theme_economist() </code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-1-1.png" width="672" />
+As we can clearly see, there is a linear trend present. However, we should also note the variance present alongside the trend. If we take any value of <code>t</code> and visualize the difference between the top and the bottom value on the y-axis, the difference is quite large. So, we should expect our linear model to not do very well in terms of having a high R<sup>2</sup> value. This makes sense too, because the Powerplay is just 6 overs out of 20 in an innings and even with field restrictions it can’t be expected to fully dictate the outcome of an innings.</p>
+<div id="types-of-regression" class="section level3">
+<h3>Types of Regression</h3>
+<p>We’ll try some non-linear, non-parametric methods as well to fit our data and see if they can do better than our simple model. Namely, we’ll use loess regression, GAM regression, KNN means regression and SVM regression which are extensively used algorithms in the ML world (more for classification purposes, but also used as regressions).</p>
+</div>
+<div id="splitting-data" class="section level3">
+<h3>Splitting Data</h3>
+<p>In order to test the forecasting accuracy of our models, we’ll have to split our data into two parts. The first part will be used to estimate the data, and the second part will be used to test the accuracy of the forecasts against actual values. We’ll arbitrarily use a split of 70-30, as that’s the first one that popped in my mind :)</p>
+<p>After splitting the data we’ll build models of the types discussed above and measure them against each other according to their forecast accuracy. Since we’ll be doing the same thing after the models are created, we’ll again use the function building approach so that we don’t have to write the same code every time.</p>
+</div>
+<div id="resampling" class="section level3">
+<h3>Resampling</h3>
+<p>We’ll repeat this whole exercise (i.e. splitting the data, estimating the model and then testing) a 100 times as well. This is so that any bias in statistics that could creep in because a one-time sample being more favorable to any particular method is removed. Our sample is not too large so doing this 100 times should be enough.</p>
+<pre class="r"><code>#install caret, e1071, mgcv packages before running chunk
+
+# function to test prediction accuracy
+pred_acc &lt;- function(model, data) {
+    preds &lt;- predict(model, newdata = data) %&gt;% unname()
+    errors &lt;- (placeholder &lt;- data$final - preds)
+    return(errors)
+}
+
+all_median &lt;- list()
+all_mean &lt;- list()
+for (i in 1:100) {
+  # splitting data
+  set.seed(i) # set seed for reproducability
+  train &lt;- slice_sample(ds, prop=0.7)
+  test &lt;- anti_join(ds, train, by = &quot;id&quot;)
+
+  # creating models
+  model_lm &lt;- lm(final ~ t, data = train)
+  model_loess &lt;- loess(final ~ t, data = train, control = loess.control(surface = &quot;direct&quot;))
+  model_knn &lt;- caret::knnreg(final ~ t, data = train)
+  model_svm &lt;- e1071::svm(final ~ t,
+                          data = train, kernel = &quot;radial&quot;, epsilon = .1)
+  model_gam &lt;- mgcv::gam(final ~ s(t, bs = &quot;ts&quot;),
+                         data = train, method=&quot;REML&quot;)
+
+  all_mods &lt;- lst(model_lm, model_loess, model_knn, model_svm, model_gam)
+
+ 
+  sing_errors &lt;- lapply(all_mods, pred_acc, test) %&gt;% bind_cols()
+
+  # get table
+  all_median[[i]] &lt;- (sing_errors %&gt;%
+    mutate_all(abs) %&gt;%
+    summarize_all(median))
+  all_mean[[i]] &lt;- sing_errors %&gt;%
+    mutate_all(abs) %&gt;%
+    summarize_all(mean)
+}</code></pre>
+</div>
+</div>
+<div id="comparison-of-forecasting-accuracy" class="section level2">
+<h2>Comparison of Forecasting Accuracy</h2>
+<div id="wamztkmzej" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#wamztkmzej .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#wamztkmzej .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#wamztkmzej .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#wamztkmzej .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#wamztkmzej .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#wamztkmzej .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#wamztkmzej .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#wamztkmzej .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#wamztkmzej .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#wamztkmzej .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#wamztkmzej .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#wamztkmzej .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#wamztkmzej .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#wamztkmzej .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#wamztkmzej .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#wamztkmzej .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#wamztkmzej .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#wamztkmzej .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#wamztkmzej .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#wamztkmzej .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#wamztkmzej .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#wamztkmzej .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#wamztkmzej .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#wamztkmzej .gt_left {
+  text-align: left;
+}
+
+#wamztkmzej .gt_center {
+  text-align: center;
+}
+
+#wamztkmzej .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#wamztkmzej .gt_font_normal {
+  font-weight: normal;
+}
+
+#wamztkmzej .gt_font_bold {
+  font-weight: bold;
+}
+
+#wamztkmzej .gt_font_italic {
+  font-style: italic;
+}
+
+#wamztkmzej .gt_super {
+  font-size: 65%;
+}
+
+#wamztkmzej .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 75%;
+  vertical-align: 0.4em;
+}
+
+#wamztkmzej .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#wamztkmzej .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#wamztkmzej .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#wamztkmzej .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#wamztkmzej .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#wamztkmzej .gt_indent_5 {
+  text-indent: 25px;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <td colspan="5" class="gt_heading gt_title gt_font_normal gt_bottom_border" style>Average of Median Absolute Errors</td>
+    </tr>
+    
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="lm">lm</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="loess">loess</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="knn">knn</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="svm">svm</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="gam">gam</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td headers="model_lm" class="gt_row gt_right">17.9</td>
+<td headers="model_loess" class="gt_row gt_right">17.8</td>
+<td headers="model_knn" class="gt_row gt_right">19.1</td>
+<td headers="model_svm" class="gt_row gt_right">18.0</td>
+<td headers="model_gam" class="gt_row gt_right">17.8</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<div id="emnjrbhzrc" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#emnjrbhzrc .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#emnjrbhzrc .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#emnjrbhzrc .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#emnjrbhzrc .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#emnjrbhzrc .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#emnjrbhzrc .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#emnjrbhzrc .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#emnjrbhzrc .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#emnjrbhzrc .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#emnjrbhzrc .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#emnjrbhzrc .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#emnjrbhzrc .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#emnjrbhzrc .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#emnjrbhzrc .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#emnjrbhzrc .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#emnjrbhzrc .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#emnjrbhzrc .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#emnjrbhzrc .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#emnjrbhzrc .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#emnjrbhzrc .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#emnjrbhzrc .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#emnjrbhzrc .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#emnjrbhzrc .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#emnjrbhzrc .gt_left {
+  text-align: left;
+}
+
+#emnjrbhzrc .gt_center {
+  text-align: center;
+}
+
+#emnjrbhzrc .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#emnjrbhzrc .gt_font_normal {
+  font-weight: normal;
+}
+
+#emnjrbhzrc .gt_font_bold {
+  font-weight: bold;
+}
+
+#emnjrbhzrc .gt_font_italic {
+  font-style: italic;
+}
+
+#emnjrbhzrc .gt_super {
+  font-size: 65%;
+}
+
+#emnjrbhzrc .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 75%;
+  vertical-align: 0.4em;
+}
+
+#emnjrbhzrc .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#emnjrbhzrc .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#emnjrbhzrc .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#emnjrbhzrc .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#emnjrbhzrc .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#emnjrbhzrc .gt_indent_5 {
+  text-indent: 25px;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <td colspan="5" class="gt_heading gt_title gt_font_normal gt_bottom_border" style>Average of Mean Absolute Errors</td>
+    </tr>
+    
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="lm">lm</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="loess">loess</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="knn">knn</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="svm">svm</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="gam">gam</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td headers="model_lm" class="gt_row gt_right">21.7</td>
+<td headers="model_loess" class="gt_row gt_right">21.7</td>
+<td headers="model_knn" class="gt_row gt_right">22.7</td>
+<td headers="model_svm" class="gt_row gt_right">22.0</td>
+<td headers="model_gam" class="gt_row gt_right">21.7</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>As we can see from the tables above, in terms of predictive accuracy, all models are pretty similar, including the linear model (which is quite basic). The tables show us that if we just know the Powerplay score, we can predict the final score within approximately 18 runs or less, half the time.</p>
+</div>
 </div>
 <div class="footnotes footnotes-end-of-document">
 <hr />

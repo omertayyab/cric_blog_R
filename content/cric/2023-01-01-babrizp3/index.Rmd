@@ -1,7 +1,7 @@
 ---
 title: The Babar Rizwan Question, Part 3
 author: OT
-date: '2023-01-01'
+date: '2022-12-15'
 slug: BabRizP3
 categories:
   - analysis
@@ -138,7 +138,7 @@ We'll take the second option as we do not want to rid ourselves of any predictiv
 
 ## Building the Regression
 
-Now that we have dealt with the issue of correlated variables, we can turn our attention to the type of regression that'll be best for our purposes. Let's first take graph the data to get a visual idea of what we're dealing with.
+Now that we have dealt with the issue of correlated variables, we can turn our attention to the type of regression that'll be best for our purposes. Let's first graph the data to get a visual idea of what we're dealing with.
 ``` {r include=TRUE}
 ds %>% ggplot(aes(x = t, y = final)) +
   geom_point() +
@@ -147,15 +147,17 @@ ds %>% ggplot(aes(x = t, y = final)) +
 ```
 As we can clearly see, there is a linear trend present. However, we should also note the variance present alongside the trend. If we take any value of `t` and visualize the difference between the top and the bottom value on the y-axis, the difference is quite large. So, we should expect our linear model to not do very well in terms of having a high R<sup>2</sup> value. This makes sense too, because the Powerplay is just 6 overs out of 20 in an innings and even with field restrictions it can't be expected to fully dictate the outcome of an innings. 
 
+### Types of Regression
 We'll try some non-linear, non-parametric methods as well to fit our data and see if they can do better than our simple model. Namely, we'll use loess regression, GAM regression, KNN means regression and SVM regression which are extensively used algorithms in the ML world (more for classification purposes, but also used as regressions).
 
-## Splitting Data
+### Splitting Data
 
 In order to test the forecasting accuracy of our models, we'll have to split our data into two parts. The first part will be used to estimate the data, and the second part will be used to test the accuracy of the forecasts against actual values. We'll arbitrarily use a split of 70-30, as that's the first one that popped in my mind :)
 
 After splitting the data we'll build models of the types discussed above and measure them against each other according to their forecast accuracy. Since we'll be doing the same thing after the models are created, we'll again use the function building approach so that we don't have to write the same code every time.
 
-We'll repeat this whole exercise (i.e. splitting the data, estimating the model and then testing) a 100 times as well. This is so that any bias in statistics that could creep in because a one-time sample being more favorable to any particular method is removed. Our sample is not too large so doing this 100 times should be enough.
+### Resampling
+We'll repeat this whole exercise (i.e. splitting the data, estimating the model and then testing) a 100 times as well. This is so that any bias is removed because a once-done sample could be more favorable to a particular method. Our total sample size is not too large so resampling 100 times should be enough.
 
 ```{r models, echo=TRUE, cache=TRUE}
 #install caret, e1071, mgcv packages before running chunk
@@ -199,6 +201,7 @@ for (i in 1:100) {
 }
 ```
 
+## Comparison of Forecasting Accuracy
 ```{r tables_errors, echo=FALSE}
 table_err <- all_median %>%
   bind_rows() %>%
@@ -206,8 +209,7 @@ table_err <- all_median %>%
 
 table_err %>%
   gt %>% 
-  tab_options(table.width = "100%") %>% 
-  tab_header(title="Average of Median Absolute Errors") %>% 
+    tab_header(title="Average of Median Absolute Errors") %>% 
   fmt_number(columns=everything(),decimals=1) %>%
   opt_row_striping(row_striping = TRUE) %>%
   cols_label(.list = structure(as.list(str_remove(colnames(table_err), ".*_")),
@@ -221,7 +223,6 @@ table_err <-all_mean %>%
 
 table_err %>%
   gt %>% 
-  tab_options(table.width = "100%") %>% 
   tab_header(title="Average of Mean Absolute Errors") %>% 
   fmt_number(columns=everything(),decimals=1) %>%
   opt_row_striping(row_striping = TRUE) %>%
@@ -230,4 +231,4 @@ table_err %>%
                                )
              )
 ```
-
+As we can see from the tables above, in terms of predictive accuracy, all models are pretty similar, including the linear model (which is quite basic). The tables show us that if we just know the Powerplay score, we can predict the final score within 18 runs or less, half the time. 
