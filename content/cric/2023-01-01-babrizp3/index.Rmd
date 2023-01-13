@@ -59,11 +59,16 @@ result_wk1_pp %>%
 ```
 We had concluded that the Powerplay impact of the openers was quite close to other top teams so it must actually be the later phases of the innings where Pakistan is lacking (as shown by the difference in final scores). However, we'd still like to quantify how PP scores affect the final score, so we'll look at that question.
 
-We can also see here that Pakistan actually lost more wickets than other top teams at the end of their innings, while losing less in the Powerplay. All of this information points to the direction of Pak's usage of the overs 7-20. So, now we'll focus our analysis on that part as well.
+We can also see here that Pakistan actually lost more wickets than other top teams at the end of their innings, while losing less in the Powerplay. All of this information points to the direction of Pak's usage of the overs 7-20. We'll look at that question in part 4.
 
 # Powerplay and Final Score
 
 Finally we get to do some data science after all the data wrangling of the last 2 parts! We will start off slowly. It is reasonable to expect that the final total of a team must have some positive correlation with the score in the Powerplay. So, we'll take the 2 elements of the PP score that could have positive correlation with the final total (i.e. runs and wickets remaining) as independent variables and run some type of regression (we'll figure this out below) against the final score (set as the dependent variable).
+
+## Normalizing the variables
+However, when we multiply variables like this, we have to be wary of them having different scales. In our case, the PP scores are in tens while wickets are in ones, so one variable will have a larger impact on the product. To reduce this, we'll normalize the variables according to the following formula:
+
+*Scaled Value = (Regular Value - sample mean)/std error*
 
 ## Setting up the regression
 Before we run a regression,we have to check that the independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. Since we are looking at a general relationship between Powerplay performance and final scores, we don't really have any limitations and we can look at the entire history of T20I games for our top 5 teams plus West Indies, Australia and Sri Lanka (all have been at or near the top even though they might not be there in recent times). Our dataset will have the team names as a column so we can filter them out later if needed and the advantage is that we get a larger sample size which can (hopefully) make our prediction model stronger.
@@ -119,7 +124,12 @@ x$wickets = 10-x$wickets
 y <- corr_data %>%
   filter(ball > 6)
 
-ds <- tibble(id= y$match_id, final=y$total, PP_score = x$total, PP_wkt=x$wickets, t=x$total*x$wickets, team=y$batting_team)
+ds <- tibble(id= y$match_id, final=y$total, PP_score = x$total, PP_wkt=x$wickets, team=y$batting_team)
+
+ds$scaled_PP_wkt <- (ds$PP_wkt- min(ds$PP_wkt))/(max(ds$PP_wkt)-min(ds$PP_wkt))
+ds$scaled_PP_score <- (ds$PP_score- min(ds$PP_score))/(max(ds$PP_score)-min(ds$PP_score))
+
+ds$t <- ds$PP_score * ds$PP_wkt
 ```
 
 # Analysis
@@ -127,7 +137,7 @@ Now that we have the data all set up, we can start the analysis. The first order
 
 ## Correlation between variables
 ``` {r correlation, include= TRUE}
-cor.test(x$wickets, x$total)
+cor.test(ds$scaled_PP_wkt, ds$scaled_PP_score)
 ```
 As we can see, the correlation between the variables that are supposed to be independent is quite high. We have two options here:
 
@@ -165,7 +175,7 @@ We'll repeat this whole exercise (i.e. splitting the data, estimating the model 
 # function to test prediction accuracy
 pred_acc <- function(model, data) {
     preds <- predict(model, newdata = data) %>% unname()
-    errors <- (placeholder <- data$final - preds)
+    errors <- data$final - preds
     return(errors)
 }
 
@@ -201,7 +211,7 @@ for (i in 1:100) {
 }
 ```
 
-## Comparison of Forecasting Accuracy
+## Comparison of Models
 ```{r tables_errors, echo=FALSE}
 table_err <- all_median %>%
   bind_rows() %>%
@@ -209,7 +219,8 @@ table_err <- all_median %>%
 
 table_err %>%
   gt %>% 
-    tab_header(title="Average of Median Absolute Errors") %>% 
+  tab_header(title="Average of Median Absolute Errors") %>% 
+  tab_options(column_labels.background.color = "#F9F9F9", column_labels.text_transform = "uppercase") %>%
   fmt_number(columns=everything(),decimals=1) %>%
   opt_row_striping(row_striping = TRUE) %>%
   cols_label(.list = structure(as.list(str_remove(colnames(table_err), ".*_")),
@@ -224,6 +235,7 @@ table_err <-all_mean %>%
 table_err %>%
   gt %>% 
   tab_header(title="Average of Mean Absolute Errors") %>% 
+  tab_options(column_labels.background.color = "#F9F9F9", column_labels.text_transform = "uppercase") %>%
   fmt_number(columns=everything(),decimals=1) %>%
   opt_row_striping(row_striping = TRUE) %>%
   cols_label(.list = structure(as.list(str_remove(colnames(table_err), ".*_")),
@@ -231,4 +243,53 @@ table_err %>%
                                )
              )
 ```
-As we can see from the tables above, in terms of predictive accuracy, all models are pretty similar, including the linear model (which is quite basic). The tables show us that if we just know the Powerplay score, we can predict the final score within 18 runs or less, half the time. 
+### Comparison of Forecasting Accuracy
+
+As we can see from the tables above, in terms of predictive accuracy, all models are pretty similar, including the linear model (which is quite basic). The tables show us that if we just know the Powerplay score, we can predict the final score within 18 runs or less, half the time and, on average, our prediction will be off by about 22 runs. The visual representation of data had given us the clue that due to high variation, we can't expect to get very close to a final prediction with just the PP score. 
+
+### Comparison of R<sup>2</sup>
+We can go on and build a more sophisticated model by incorporating factors like quality of batters to come, quality of bowling etc. but we do not need to. Our purpose was to measure the predictive power of just the Powerplay score and we've done that. We'll now calculate R<sup>2</sup> statistic for all models to measure the goodness of fit to see how much variation in the data is explained by our models.
+
+```{r R_squared, cache=TRUE}
+calc_R_sq <- function(model, data){
+  preds<- predict(model, newdata=data)
+  actuals <- data$final
+  SSR <- (preds-actuals)^2 %>% sum
+  SST <- (actuals - mean(actuals))^2 %>% sum
+  R_sq <- 1-SSR/SST
+  return(R_sq)
+}
+model_lm <- lm(final ~ t, data = ds)
+model_loess <- loess(final ~ t, data = ds, control = loess.control(surface = "direct"))
+model_knn <- caret::knnreg(final ~ t, data = ds)
+model_svm <- e1071::svm(final ~ t,
+                          data = ds, kernel = "radial", epsilon = .1)
+model_gam <- mgcv::gam(final ~ s(t, bs = "ts"),
+                         data = ds, method="REML")
+
+all_mods <- lst(model_lm, model_loess, model_knn, model_svm, model_gam)
+
+sapply(all_mods,calc_R_sq, ds) %>% 
+  enframe(name="Model", value="R squared") %>%
+  mutate(Model=toupper(str_remove(Model,".*_"))) %>%
+  gt() %>%
+  tab_options(column_labels.background.color = "#F9F9F9") %>%
+  tab_header(title="R squared values") %>% 
+  fmt_percent(columns=2, decimals = 1) %>%
+  opt_row_striping(row_striping = TRUE)
+```
+We can see that all models perform similarly except KNN. It is no coincidence that KNN has the highest R<sup>2</sup> and the lowest forecasting accuracy. KNN is overfitting the model and in doing so, compromising on forecast accuracy.
+
+# Model Selection
+
+Based on the above information, we'll use the simple linear model as our measure of Powerplay score because it is pretty much the same as other models and gives us easy interpretation of results (unlike non-parametric methods). As a model validity check, we'll confirm that the errors from the model our independently distributed through the Shapiro-Wilk test for normality.
+
+``` {r histogram }
+tibble( errors = residuals(model_lm)) %>%
+  ggplot(aes(x=errors)) + 
+  geom_histogram(aes(y=..density..),stat="bin", bins=50, color="black", fill="gray") +
+  geom_density(alpha=0.6, fill="gray") + 
+  theme_economist()
+shapiro.test(residuals(model_lm))
+```
+The null hypothesis of normality is accepted at 5% significance level, i.e. p-value > 5%, so our model is considered valid
