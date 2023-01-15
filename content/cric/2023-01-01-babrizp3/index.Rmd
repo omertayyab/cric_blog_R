@@ -30,7 +30,6 @@ library(knitr)
 library(kableExtra)
 library(gt)
 library(ggplot2)
-library(ggthemes)
 
 knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FALSE)
 all_data <- readRDS(here("static","data","R_objects","all_data.rds"))
@@ -64,11 +63,6 @@ We can also see here that Pakistan actually lost more wickets than other top tea
 # Powerplay and Final Score
 
 Finally we get to do some data science after all the data wrangling of the last 2 parts! We will start off slowly. It is reasonable to expect that the final total of a team must have some positive correlation with the score in the Powerplay. So, we'll take the 2 elements of the PP score that could have positive correlation with the final total (i.e. runs and wickets remaining) as independent variables and run some type of regression (we'll figure this out below) against the final score (set as the dependent variable).
-
-## Normalizing the variables
-However, when we multiply variables like this, we have to be wary of them having different scales. In our case, the PP scores are in tens while wickets are in ones, so one variable will have a larger impact on the product. To reduce this, we'll normalize the variables according to the following formula:
-
-*Scaled Value = (Regular Value - sample mean)/std error*
 
 ## Setting up the regression
 Before we run a regression,we have to check that the independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. Since we are looking at a general relationship between Powerplay performance and final scores, we don't really have any limitations and we can look at the entire history of T20I games for our top 5 teams plus West Indies, Australia and Sri Lanka (all have been at or near the top even though they might not be there in recent times). Our dataset will have the team names as a column so we can filter them out later if needed and the advantage is that we get a larger sample size which can (hopefully) make our prediction model stronger.
@@ -126,10 +120,10 @@ y <- corr_data %>%
 
 ds <- tibble(id= y$match_id, final=y$total, PP_score = x$total, PP_wkt=x$wickets, team=y$batting_team)
 
-ds$scaled_PP_wkt <- (ds$PP_wkt- min(ds$PP_wkt))/(max(ds$PP_wkt)-min(ds$PP_wkt))
-ds$scaled_PP_score <- (ds$PP_score- min(ds$PP_score))/(max(ds$PP_score)-min(ds$PP_score))
+#ds$scaled_PP_wkt <- (ds$PP_wkt- min(ds$PP_wkt))/(max(ds$PP_wkt)-min(ds$PP_wkt))
+#ds$scaled_PP_score <- (ds$PP_score- min(ds$PP_score))/(max(ds$PP_score)-min(ds$PP_score))
 
-ds$t <- ds$PP_score * ds$PP_wkt
+ds$t <- ds$PP_score * ds$PP_wkt 
 ```
 
 # Analysis
@@ -137,7 +131,7 @@ Now that we have the data all set up, we can start the analysis. The first order
 
 ## Correlation between variables
 ``` {r correlation, include= TRUE}
-cor.test(ds$scaled_PP_wkt, ds$scaled_PP_score)
+cor.test(ds$PP_wkt, ds$PP_score)
 ```
 As we can see, the correlation between the variables that are supposed to be independent is quite high. We have two options here:
 
@@ -146,22 +140,27 @@ As we can see, the correlation between the variables that are supposed to be ind
 
 We'll take the second option as we do not want to rid ourselves of any predictive power of one of the variables. To combine the two variables, we'll simply multiply them and create a new variable called `t`. This new variable works well enough for our purpose, because it  allows us to have both variables present in our regression. But it also means that we can't separate the impact of each element. At this point, we're happy with the trade-off but this can be revisited later.
 
-## Building the Regression
+### Sidenote on scaling
+There are other ways to form a new variable as well. For example, we could also use just their sum, or the sum of their squares (think of the two elements as vectors (x,y) coordinates on a Cartesian plane) in our regression 
 
+However, when we do that, we have to be wary of them having different scales. In our case, the PP scores are in tens while wickets are in ones, so one variable will have a larger impact on the sum or sum of squares. To reduce this, we'll have to scale the variables (using normalization or min-max scaling). When we multiply the variables, we avoid the scaling issue.^[Those stats gave worse forecasting results when I tried them as an experiment, but I will not include the results for brevity. The code, however, does include calculation of scaled stats.]
+
+## Building the Regression
 Now that we have dealt with the issue of correlated variables, we can turn our attention to the type of regression that'll be best for our purposes. Let's first graph the data to get a visual idea of what we're dealing with.
-``` {r include=TRUE}
+``` {r graph_1}
 ds %>% ggplot(aes(x = t, y = final)) +
   geom_point() +
   geom_smooth(method="lm", formula= y~x) + 
-  theme_economist() 
+  ggtitle("Final scores and 't'") +
+  labs(caption = "t is the product of Powerplay total and wickets remaining") +
+  ggthemes::theme_economist() 
 ```
-As we can clearly see, there is a linear trend present. However, we should also note the variance present alongside the trend. If we take any value of `t` and visualize the difference between the top and the bottom value on the y-axis, the difference is quite large. So, we should expect our linear model to not do very well in terms of having a high R<sup>2</sup> value. This makes sense too, because the Powerplay is just 6 overs out of 20 in an innings and even with field restrictions it can't be expected to fully dictate the outcome of an innings. 
+As we can clearly see, there is a linear trend present. However, we should also note the variance present alongside the trend. If we take any value of `t` and visualize the difference between the min and max value of the final score on the y-axis, the difference is quite large. So, we should expect our linear model to not do very well in terms of having a high R<sup>2</sup> value. This makes sense too, because the Powerplay is just 6 overs out of 20 in an innings and even with field restrictions it can't be expected to fully dictate the outcome of an innings. 
 
 ### Types of Regression
-We'll try some non-linear, non-parametric methods as well to fit our data and see if they can do better than our simple model. Namely, we'll use loess regression, GAM regression, KNN means regression and SVM regression which are extensively used algorithms in the ML world (more for classification purposes, but also used as regressions).
+We'll try some non-linear, non-parametric methods as well to fit our data and see if they can do better than a simple linear model. Namely, we'll use loess regression, GAM regression, KNN means regression and SVM regression which are extensively used algorithms in the ML world (more for classification purposes, but also used as regressions).
 
 ### Splitting Data
-
 In order to test the forecasting accuracy of our models, we'll have to split our data into two parts. The first part will be used to estimate the data, and the second part will be used to test the accuracy of the forecasts against actual values. We'll arbitrarily use a split of 70-30, as that's the first one that popped in my mind :)
 
 After splitting the data we'll build models of the types discussed above and measure them against each other according to their forecast accuracy. Since we'll be doing the same thing after the models are created, we'll again use the function building approach so that we don't have to write the same code every time.
@@ -244,7 +243,6 @@ table_err %>%
              )
 ```
 ### Comparison of Forecasting Accuracy
-
 As we can see from the tables above, in terms of predictive accuracy, all models are pretty similar, including the linear model (which is quite basic). The tables show us that if we just know the Powerplay score, we can predict the final score within 18 runs or less, half the time and, on average, our prediction will be off by about 22 runs. The visual representation of data had given us the clue that due to high variation, we can't expect to get very close to a final prediction with just the PP score. 
 
 ### Comparison of R<sup>2</sup>
@@ -284,12 +282,13 @@ We can see that all models perform similarly except KNN. It is no coincidence th
 
 Based on the above information, we'll use the simple linear model as our measure of Powerplay score because it is pretty much the same as other models and gives us easy interpretation of results (unlike non-parametric methods). As a model validity check, we'll confirm that the errors from the model our independently distributed through the Shapiro-Wilk test for normality.
 
-``` {r histogram }
+``` {r histogram, echo= FALSE }
 tibble( errors = residuals(model_lm)) %>%
   ggplot(aes(x=errors)) + 
-  geom_histogram(aes(y=..density..),stat="bin", bins=50, color="black", fill="gray") +
-  geom_density(alpha=0.6, fill="gray") + 
-  theme_economist()
+  geom_histogram(stat="bin",binwidth=5, color="black",fill="gray")+
+  geom_density(aes(y=after_stat(density)*(length(residuals(model_lm)) * 5)),alpha=0.6, fill="gray") + 
+  ylab("Count") +
+  ggthemes::theme_economist()
 shapiro.test(residuals(model_lm))
 ```
-The null hypothesis of normality is accepted at 5% significance level, i.e. p-value > 5%, so our model is considered valid
+The null hypothesis of normality is not rejected at 5% significance level, i.e. p-value > 5%, so our model is considered valid
