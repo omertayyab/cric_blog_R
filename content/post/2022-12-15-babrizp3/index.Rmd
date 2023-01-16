@@ -311,5 +311,5 @@ shapiro.test(residuals(model_lm))
 ```
 The null hypothesis of normality is not rejected at 5% significance level, i.e. p-value > 5%, so our model is considered valid
 
-# Conclusion:
+# Conclusion
 In this part we were able to quantify the relationship between Powerplay and final scores by constructing a model that can reasonably accurately (its a subjective claim) predict final scores. In the next part, we'll fine-tune the model by looking at which regressors are actually adding information and use that version to arrive at some conclusions. 
