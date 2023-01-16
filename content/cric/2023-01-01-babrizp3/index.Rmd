@@ -37,6 +37,8 @@ Pak_data <- readRDS(here("static","data","R_objects","Pak_data.rds"))
 overs <- readRDS(here("static","data","R_objects","overs.rds"))
 result_wk1_pp <- readRDS(here("static","data","R_objects","result_wk1_pp.rds"))
 `%!in%` <- Negate(`%in%`)
+all_data$city <- ifelse(is.na(all_data$city),gsub(" .*", "",all_data$venue),all_data$city)
+city_ctry <- read_csv(here("static","data","city_ctry.csv"))
 ```
 
 This is an R Markdown document^[Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For downloading the R Markdown file that generated this webpage, visit my [GitHub](https://github.com/omertayyab/cric_blog_R). For more details on using R Markdown, use this [link](http://rmarkdown.rstudio.com)].
@@ -58,16 +60,18 @@ result_wk1_pp %>%
 ```
 We had concluded that the Powerplay impact of the openers was quite close to other top teams so it must actually be the later phases of the innings where Pakistan is lacking (as shown by the difference in final scores). However, we'd still like to quantify how PP scores affect the final score, so we'll look at that question.
 
-We can also see here that Pakistan actually lost more wickets than other top teams at the end of their innings, while losing less in the Powerplay. All of this information points to the direction of Pak's usage of the overs 7-20. We'll look at that question in part 4.
+We can also see here that Pakistan actually lost more wickets than other top teams at the end of their innings, while losing less in the Powerplay. All of this information points to the direction of Pak's usage of the overs 7-20. We'll look at that question in a later part.
 
 # Powerplay and Final Score
 
 Finally we get to do some data science after all the data wrangling of the last 2 parts! We will start off slowly. It is reasonable to expect that the final total of a team must have some positive correlation with the score in the Powerplay. So, we'll take the 2 elements of the PP score that could have positive correlation with the final total (i.e. runs and wickets remaining) as independent variables and run some type of regression (we'll figure this out below) against the final score (set as the dependent variable).
 
 ## Setting up the regression
-Before we run a regression,we have to check that the independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. Since we are looking at a general relationship between Powerplay performance and final scores, we don't really have any limitations and we can look at the entire history of T20I games for our top 5 teams plus West Indies, Australia and Sri Lanka (all have been at or near the top even though they might not be there in recent times). Our dataset will have the team names as a column so we can filter them out later if needed and the advantage is that we get a larger sample size which can (hopefully) make our prediction model stronger.
+Before we run a regression,we have to check that the independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. Since we are looking at a general relationship between Powerplay performance and final scores, we don't really have any limitations and we can look at the entire history of T20I games. But the game does tend to change during different eras. Tactics change, players change, playing equipment changes etc. So to keep things more modern, we will limit ourselves to games starting from 2017. 
 
-However, we have to limit ourselves to first innings only because during the 2nd innings, the final score has an upper bound (i.e. the target for the chasing team). This could be a big factor in determining the chasing team's approach and we want to avoid that biasing our sample.
+We will add three more teams to our top 5 teams, namely West Indies, Australia and Sri Lanka. All have been at or near the top even though they might not be there currently. Our dataset will have the team names as a column so we can filter them out later if needed and the advantage is that we get a larger sample size which can (hopefully) make our prediction model stronger.
+
+We will also only look at first innings of games because during the 2nd innings, the final score has an upper bound (i.e. the target for the chasing team). This could be a big factor in determining the chasing team's approach and we want to avoid that biasing our sample.
 
 # Putting the Dataset together
 We have more than 1600 `.csv` files with ball-by-ball data in our collection for all T20Is played since the start of the format. From those, we only really need three things:
@@ -76,7 +80,7 @@ We have more than 1600 `.csv` files with ball-by-ball data in our collection for
 2. Powerplay wickets
 3. Final Score
 
-So, we'll first filter the `match_id` from our master file which has summary information about each game we have ball-by-ball data for. We'll use the master file to filter out the games containing our chosen 8 teams where they played against each other. This will ensure that the quality of teams remains consistent.
+So, we'll first filter the `match_id` from our master file which has summary information about each game we have ball-by-ball data for. We'll use the master file to filter out the games containing our chosen 8 teams where they played against each other since the start of 2017. This will ensure that the quality of teams remains consistent.
 
 Once we have the `match_id` column that we need, we'll use it to call each `.csv` as they are named according to their `match_id`. We'll read each file and pull out the required three bits of information. When we have the three bits, we'll split them into two tables, one for the end of the Powerplay and one for the final ball of the innings.
 
@@ -86,11 +90,15 @@ corr_games <-
   all_data %>%
   arrange(.,date) %>%
   filter(outcome != "no result" | is.na(outcome) ) %>%
-  filter(date >= lubridate::ymd("1999-01-01") & date <= lubridate::ymd("2022-10-16")) %>%
+  filter(date >= lubridate::ymd("2017-01-01") & date <= lubridate::ymd("2022-10-16")) %>%
   filter( team1 %in% c("Pakistan","England","India","New Zealand", "South Africa", "Australia", "Sri Lanka", "West Indies")) %>%
   filter( team2 %in% c("Pakistan","England","India","New Zealand", "South Africa", "Australia", "Sri Lanka", "West Indies")) %>%
   select(.,-season) %>%
   select(c(1:11))
+
+corr_games <- merge(corr_games, city_ctry, by= "city") %>% 
+  as_tibble %>%
+  arrange(date)
 
 filenames <- paste0(here("static", "data", "t20s_male_csv2", corr_games$match_id), ".csv")
 
@@ -118,7 +126,15 @@ x$wickets = 10-x$wickets
 y <- corr_data %>%
   filter(ball > 6)
 
-ds <- tibble(id= y$match_id, final=y$total, PP_score = x$total, PP_wkt=x$wickets, team=y$batting_team)
+ds <- tibble(id= y$match_id,
+             date = y$start_date,
+             final=y$total,
+             PP_score = x$total,
+             PP_wkt=x$wickets,
+             team=as.factor(y$batting_team),
+             country = as.factor(corr_games$country),
+             region = corr_games$region
+             )
 
 #ds$scaled_PP_wkt <- (ds$PP_wkt- min(ds$PP_wkt))/(max(ds$PP_wkt)-min(ds$PP_wkt))
 #ds$scaled_PP_score <- (ds$PP_score- min(ds$PP_score))/(max(ds$PP_score)-min(ds$PP_score))
@@ -127,11 +143,11 @@ ds$t <- ds$PP_score * ds$PP_wkt
 ```
 
 # Analysis
-Now that we have the data all set up, we can start the analysis. The first order of business is figuring out the correlation between the independent variables. This is pretty simple in `R`, all we need is the `cor.test()` function which is part of the `stats` pacakge loaded by default in `R` when it starts.
+Now that we have the data all set up, we can start the analysis. The first order of business is figuring out the correlation between the 'independent' variables. This is pretty simple in `R`, all we need is the `cor.test()` function which is part of the `stats` pacakge loaded by default in `R` when it starts.
 
 ## Correlation between variables
 ``` {r correlation, include= TRUE}
-cor.test(ds$PP_wkt, ds$PP_score)
+cor.test(ds$final, ds$t)
 ```
 As we can see, the correlation between the variables that are supposed to be independent is quite high. We have two options here:
 
@@ -155,10 +171,12 @@ ds %>% ggplot(aes(x = t, y = final)) +
   labs(caption = "t is the product of Powerplay total and wickets remaining") +
   ggthemes::theme_economist() 
 ```
-As we can clearly see, there is a linear trend present. However, we should also note the variance present alongside the trend. If we take any value of `t` and visualize the difference between the min and max value of the final score on the y-axis, the difference is quite large. So, we should expect our linear model to not do very well in terms of having a high R<sup>2</sup> value. This makes sense too, because the Powerplay is just 6 overs out of 20 in an innings and even with field restrictions it can't be expected to fully dictate the outcome of an innings. 
+As we can clearly see, there is a linear trend present. However, we should also note the variance present alongside the trend. If we take any value of `t` and visualize the difference between the min and max value of the final score on the y-axis, the difference is quite large. This makes sense, because the Powerplay is just 6 overs out of 20 in an innings and even with field restrictions it can't be expected to fully dictate the outcome of an innings without knowing anything else. 
+
+So, we should expect our linear model to not do very well in terms of having a high R<sup>2</sup> value unless we add other information containing variables to the regression. One more bit of information we can add to the regression is a dummy variable for our 8 teams. If significant, it'll show us that different teams have a different relationship between Powerplay score and final score.
 
 ### Types of Regression
-We'll try some non-linear, non-parametric methods as well to fit our data and see if they can do better than a simple linear model. Namely, we'll use loess regression, GAM regression, KNN means regression and SVM regression which are extensively used algorithms in the ML world (more for classification purposes, but also used as regressions).
+We'll try some non-linear, non-parametric methods as well to fit our data and see if they can do better than a simple linear model. Namely, we'll use GAM regression, KNN means regression and SVM regression which are extensively used algorithms in the ML world (more for classification purposes, but also used as regressions).
 
 ### Splitting Data
 In order to test the forecasting accuracy of our models, we'll have to split our data into two parts. The first part will be used to estimate the data, and the second part will be used to test the accuracy of the forecasts against actual values. We'll arbitrarily use a split of 70-30, as that's the first one that popped in my mind :)
@@ -166,36 +184,35 @@ In order to test the forecasting accuracy of our models, we'll have to split our
 After splitting the data we'll build models of the types discussed above and measure them against each other according to their forecast accuracy. Since we'll be doing the same thing after the models are created, we'll again use the function building approach so that we don't have to write the same code every time.
 
 ### Resampling
-We'll repeat this whole exercise (i.e. splitting the data, estimating the model and then testing) a 100 times as well. This is so that any bias is removed because a once-done sample could be more favorable to a particular method. Our total sample size is not too large so resampling 100 times should be enough.
+We'll repeat this whole exercise (i.e. splitting the data, estimating the model and then testing) a 50 times. This is so that any bias is removed because a once-done sample could be more favorable to a particular method. Our total sample size is not too large so resampling 50 times should be enough.
 
-```{r models, echo=TRUE, cache=TRUE}
+```{r models, echo=TRUE}
 #install caret, e1071, mgcv packages before running chunk
 
 # function to test prediction accuracy
 pred_acc <- function(model, data) {
-    preds <- predict(model, newdata = data) %>% unname()
-    errors <- data$final - preds
-    return(errors)
+  preds <- predict(model, newdata = data) %>% unname()
+  errors <- data$final - preds
+  return(errors)
 }
 
 all_median <- list()
 all_mean <- list()
-for (i in 1:100) {
+for (i in 1:50) {
   # splitting data
   set.seed(i) # set seed for reproducability
   train <- slice_sample(ds, prop=0.7)
   test <- anti_join(ds, train, by = "id")
-
+  
   # creating models
-  model_lm <- lm(final ~ t, data = train)
-  model_loess <- loess(final ~ t, data = train, control = loess.control(surface = "direct"))
-  model_knn <- caret::knnreg(final ~ t, data = train)
-  model_svm <- e1071::svm(final ~ t,
-                          data = train, kernel = "radial", epsilon = .1)
-  model_gam <- mgcv::gam(final ~ s(t, bs = "ts"),
+  model_lm <- lm(final ~ t + team, data = train)
+  #model_loess <- loess(final ~ t  , data = train, control = loess.control(surface = "direct"))
+  model_knn <- caret::knnreg(final ~ t + team, data = train)
+  model_svm <- e1071::svm(final ~ t + team, data = train, kernel = "radial", epsilon = .1)
+  model_gam <- mgcv::gam(final ~ s(t, bs = "ps") + factor(team),
                          data = train, method="REML")
 
-  all_mods <- lst(model_lm, model_loess, model_knn, model_svm, model_gam)
+  all_mods <- lst(model_lm, model_knn, model_svm, model_gam)
 
  
   sing_errors <- lapply(all_mods, pred_acc, test) %>% bind_cols()
@@ -212,41 +229,41 @@ for (i in 1:100) {
 
 ## Comparison of Models
 ```{r tables_errors, echo=FALSE}
-table_err <- all_median %>%
+table_err1 <- all_median %>%
   bind_rows() %>%
   summarize_all(mean)
 
-table_err %>%
+table_err1 %>%
   gt %>% 
   tab_header(title="Average of Median Absolute Errors") %>% 
   tab_options(column_labels.background.color = "#F9F9F9", column_labels.text_transform = "uppercase") %>%
   fmt_number(columns=everything(),decimals=1) %>%
   opt_row_striping(row_striping = TRUE) %>%
-  cols_label(.list = structure(as.list(str_remove(colnames(table_err), ".*_")),
-                               names = colnames(table_err)
+  cols_label(.list = structure(as.list(str_remove(colnames(table_err1), ".*_")),
+                               names = colnames(table_err1)
                                )
              )
 
-table_err <-all_mean %>%
+table_err2 <-all_mean %>%
   bind_rows() %>%
   summarize_all(mean)
 
-table_err %>%
+table_err2 %>%
   gt %>% 
   tab_header(title="Average of Mean Absolute Errors") %>% 
   tab_options(column_labels.background.color = "#F9F9F9", column_labels.text_transform = "uppercase") %>%
   fmt_number(columns=everything(),decimals=1) %>%
   opt_row_striping(row_striping = TRUE) %>%
-  cols_label(.list = structure(as.list(str_remove(colnames(table_err), ".*_")),
-                               names = colnames(table_err)
+  cols_label(.list = structure(as.list(str_remove(colnames(table_err2), ".*_")),
+                               names = colnames(table_err2)
                                )
              )
 ```
 ### Comparison of Forecasting Accuracy
-As we can see from the tables above, in terms of predictive accuracy, all models are pretty similar, including the linear model (which is quite basic). The tables show us that if we just know the Powerplay score, we can predict the final score within 18 runs or less, half the time and, on average, our prediction will be off by about 22 runs. The visual representation of data had given us the clue that due to high variation, we can't expect to get very close to a final prediction with just the PP score. 
+As we can see from the tables above, in terms of predictive accuracy, all models are pretty similar, including the linear model (which is quite basic). The tables show us that if we just know the Powerplay score, we can predict the final score within `r round(table_err1$model_lm, digits=0)` runs or less, half the time and, on average, our prediction will be off by about `r round(table_err2$model_lm, digits=0)` runs. The visual representation of data had given us the clue that due to high variation, we can't expect to get very close to a final prediction with just the PP score. 
 
 ### Comparison of R<sup>2</sup>
-We can go on and build a more sophisticated model by incorporating factors like quality of batters to come, quality of bowling etc. but we do not need to. Our purpose was to measure the predictive power of just the Powerplay score and we've done that. We'll now calculate R<sup>2</sup> statistic for all models to measure the goodness of fit to see how much variation in the data is explained by our models.
+We can go on and build a more sophisticated model by incorporating factors like quality of batters to come, quality of bowling etc. but that would be a very logn exercise and one we don't need to undertake. Our purpose was to measure the predictive power of just the Powerplay score and we've done that with a model that can be (subjectively) considered good enough. We'll now calculate R<sup>2</sup> statistic for all models to measure the goodness of fit to see how much variation in the data is explained by our models.
 
 ```{r R_squared, cache=TRUE}
 calc_R_sq <- function(model, data){
@@ -257,15 +274,15 @@ calc_R_sq <- function(model, data){
   R_sq <- 1-SSR/SST
   return(R_sq)
 }
-model_lm <- lm(final ~ t, data = ds)
-model_loess <- loess(final ~ t, data = ds, control = loess.control(surface = "direct"))
-model_knn <- caret::knnreg(final ~ t, data = ds)
-model_svm <- e1071::svm(final ~ t,
-                          data = ds, kernel = "radial", epsilon = .1)
-model_gam <- mgcv::gam(final ~ s(t, bs = "ts"),
-                         data = ds, method="REML")
+model_lm <- lm(final ~ t + team , data = ds)
+#model_loess <- loess(final ~ t, data = ds, control = loess.control(surface = "direct"))
+model_knn <- caret::knnreg(final ~ t + team, data = ds)
+model_svm <- e1071::svm(final ~ t + team,
+                        data = ds, kernel = "radial", epsilon = .1)
+model_gam <- mgcv::gam(final ~ s(t, bs = "ts") + factor(team),
+                       data = ds, method="REML")
 
-all_mods <- lst(model_lm, model_loess, model_knn, model_svm, model_gam)
+all_mods <- lst(model_lm, model_knn, model_svm, model_gam)
 
 sapply(all_mods,calc_R_sq, ds) %>% 
   enframe(name="Model", value="R squared") %>%
@@ -289,6 +306,10 @@ tibble( errors = residuals(model_lm)) %>%
   geom_density(aes(y=after_stat(density)*(length(residuals(model_lm)) * 5)),alpha=0.6, fill="gray") + 
   ylab("Count") +
   ggthemes::theme_economist()
+
 shapiro.test(residuals(model_lm))
 ```
 The null hypothesis of normality is not rejected at 5% significance level, i.e. p-value > 5%, so our model is considered valid
+
+# Conclusion:
+In this part we were able to quantify the relationship between Powerplay and final scores by constructing a model that can reasonably accurately (its a subjective claim) predict final scores. In the next part, we'll fine-tune the model by looking at which regressors are actually adding information and use that version to arrive at some conclusions. 
