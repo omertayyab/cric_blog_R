@@ -147,7 +147,7 @@ Now that we have the data all set up, we can start the analysis. The first order
 
 ## Correlation between variables
 ``` {r correlation, include= TRUE}
-cor.test(ds$final, ds$t)
+cor.test(ds$PP_score, ds$PP_wkt)
 ```
 As we can see, the correlation between the variables that are supposed to be independent is quite high. We have two options here:
 

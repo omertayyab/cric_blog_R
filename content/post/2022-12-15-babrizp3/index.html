@@ -241,18 +241,18 @@ ds$t &lt;- ds$PP_score * ds$PP_wkt </code></pre>
 <p>Now that we have the data all set up, we can start the analysis. The first order of business is figuring out the correlation between the ‘independent’ variables. This is pretty simple in <code>R</code>, all we need is the <code>cor.test()</code> function which is part of the <code>stats</code> pacakge loaded by default in <code>R</code> when it starts.</p>
 <div id="correlation-between-variables" class="section level2">
 <h2 id = "243">Correlation between variables</h2>
-<pre class="r"><code>cor.test(ds$final, ds$t)</code></pre>
+<pre class="r"><code>cor.test(ds$PP_score, ds$PP_wkt)</code></pre>
 <pre><code>## 
 ## 	Pearson&#39;s product-moment correlation
 ## 
-## data:  ds$final and ds$t
-## t = 11.513, df = 269, p-value &lt; 2.2e-16
+## data:  ds$PP_score and ds$PP_wkt
+## t = 9.0163, df = 269, p-value &lt; 2.2e-16
 ## alternative hypothesis: true correlation is not equal to 0
 ## 95 percent confidence interval:
-##  0.4888359 0.6492363
+##  0.3846642 0.5682741
 ## sample estimates:
 ##       cor 
-## 0.5745264</code></pre>
+## 0.4817389</code></pre>
 <p>As we can see, the correlation between the variables that are supposed to be independent is quite high. We have two options here:</p>
 <ol style="list-style-type: decimal">
 <li>Drop one of the variables, or</li>
