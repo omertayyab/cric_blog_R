@@ -45,7 +45,9 @@ This is an R Markdown document^[Markdown is a simple formatting syntax for autho
 
 # Introduction
 
-In the previous part, we had scene the table below:
+In the previous part, we had seen the table below
+
+::: { style="overflow-x: auto"}
 ```{r Pakistan_matches, echo=FALSE, cache=TRUE}
 options(kableExtra.html.bsTable = TRUE)
 
@@ -58,6 +60,8 @@ result_wk1_pp %>%
       ) %>%
   kable_styling(bootstrap_options = c("striped","hover"))
 ```
+:::
+
 We had concluded that the Powerplay impact of the openers was quite close to other top teams so it must actually be the later phases of the innings where Pakistan is lacking (as shown by the difference in final scores). However, we'd still like to quantify how PP scores affect the final score, so we'll look at that question.
 
 We can also see here that Pakistan actually lost more wickets than other top teams at the end of their innings, while losing less in the Powerplay. All of this information points to the direction of Pak's usage of the overs 7-20. We'll look at that question in a later part.
