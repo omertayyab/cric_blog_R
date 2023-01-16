@@ -62,16 +62,16 @@ result_wk1_pp %>%
 ```
 :::
 
-We had concluded that the Powerplay impact of the openers was quite close to other top teams so it must actually be the later phases of the innings where Pakistan is lacking (as shown by the difference in final scores). However, we'd still like to quantify how PP scores affect the final score, so we'll look at that question.
+We had concluded that the Powerplay impact of the openers was quite close to other top teams so it must actually be the later phases of the innings where Pakistan is lacking (as shown by the difference in final scores). However, we'd still like to know and quantify how PP scores affect the final score, so we'll look at that question.
 
-We can also see here that Pakistan actually lost more wickets than other top teams at the end of their innings, while losing less in the Powerplay. All of this information points to the direction of Pak's usage of the overs 7-20. We'll look at that question in a later part.
+We can also see here that Pakistan actually lost more wickets than other top teams at the end of their innings, while losing less in the Powerplay. All of this information points to the direction of Pak's usage of the overs 7-20. We'll look at that idea in a later part.
 
 # Powerplay and Final Score
 
-Finally we get to do some data science after all the data wrangling of the last 2 parts! We will start off slowly. It is reasonable to expect that the final total of a team must have some positive correlation with the score in the Powerplay. So, we'll take the 2 elements of the PP score that could have positive correlation with the final total (i.e. runs and wickets remaining) as independent variables and run some type of regression (we'll figure this out below) against the final score (set as the dependent variable).
+Finally we get to do some data science after all the data wrangling of the last 2 episodes! We will start off slowly. It is reasonable to expect that the final total of a team would have some positive correlation with the score in the Powerplay. So, we'll take the 2 elements of the PP score that could have positive correlation with the final total (i.e. runs and wickets remaining) as independent variables and run some type of regression (we'll figure this out below) against the final score (set as the dependent variable).
 
 ## Setting up the regression
-Before we run a regression,we have to check that the independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. Since we are looking at a general relationship between Powerplay performance and final scores, we don't really have any limitations and we can look at the entire history of T20I games. But the game does tend to change during different eras. Tactics change, players change, playing equipment changes etc. So to keep things more modern, we will limit ourselves to games starting from 2017. 
+Before we run a regression,we have to check that the independent variables are not correlated to each other because that violates a key assumption of the linear regression model. We will also have to decide on a sample size. Since we are looking at a general relationship between Powerplay performance and final scores, we don't really have any limitations and we can look at the entire history of T20I games. But the game does tend to change during different eras. Tactics change, players change, bats and other playing equipment improves etc. So to keep things more modern, we will limit ourselves to games starting from 2017 somewhat arbitrarily. 
 
 We will add three more teams to our top 5 teams, namely West Indies, Australia and Sri Lanka. All have been at or near the top even though they might not be there currently. Our dataset will have the team names as a column so we can filter them out later if needed and the advantage is that we get a larger sample size which can (hopefully) make our prediction model stronger.
 
@@ -147,7 +147,7 @@ ds$t <- ds$PP_score * ds$PP_wkt
 ```
 
 # Analysis
-Now that we have the data all set up, we can start the analysis. The first order of business is figuring out the correlation between the 'independent' variables. This is pretty simple in `R`, all we need is the `cor.test()` function which is part of the `stats` pacakge loaded by default in `R` when it starts.
+Now that we have the data all set up, we can start analyzing. The first order of business is figuring out the correlation between the 'independent' variables. This is pretty simple in `R`, all we need is the `cor.test()` function which is part of the `stats` package loaded by default in `R` when it starts.
 
 ## Correlation between variables
 ``` {r correlation, include= TRUE}
@@ -163,11 +163,11 @@ We'll take the second option as we do not want to rid ourselves of any predictiv
 ### Sidenote on scaling
 There are other ways to form a new variable as well. For example, we could also use just their sum, or the sum of their squares (think of the two elements as vectors (x,y) coordinates on a Cartesian plane) in our regression 
 
-However, when we do that, we have to be wary of them having different scales. In our case, the PP scores are in tens while wickets are in ones, so one variable will have a larger impact on the sum or sum of squares. To reduce this, we'll have to scale the variables (using normalization or min-max scaling). When we multiply the variables, we avoid the scaling issue.^[Those stats gave worse forecasting results when I tried them as an experiment, but I will not include the results for brevity. The code, however, does include calculation of scaled stats.]
+However, when we do that, we have to be wary of them having different scales. In our case, the PP scores are in tens while wickets are in ones, so one variable will have a larger impact on the sum or sum of squares. To reduce this, we'll have to scale the variables (using normalization or min-max scaling). When we multiply the variables, we avoid the scaling issue.^[Scaled stats gave worse forecasting results when I tried them as an experiment, but I will not include the results for brevity. The code, however, does include calculation of scaled stats.]
 
 ## Building the Regression
 Now that we have dealt with the issue of correlated variables, we can turn our attention to the type of regression that'll be best for our purposes. Let's first graph the data to get a visual idea of what we're dealing with.
-``` {r graph_1}
+``` {r graph_1, echo=FALSE}
 ds %>% ggplot(aes(x = t, y = final)) +
   geom_point() +
   geom_smooth(method="lm", formula= y~x) + 
@@ -232,6 +232,7 @@ for (i in 1:50) {
 ```
 
 ## Comparison of Models
+### Comparison of Forecasting Accuracy
 ```{r tables_errors, echo=FALSE}
 table_err1 <- all_median %>%
   bind_rows() %>%
@@ -263,11 +264,11 @@ table_err2 %>%
                                )
              )
 ```
-### Comparison of Forecasting Accuracy
+
 As we can see from the tables above, in terms of predictive accuracy, all models are pretty similar, including the linear model (which is quite basic). The tables show us that if we just know the Powerplay score, we can predict the final score within `r round(table_err1$model_lm, digits=0)` runs or less, half the time and, on average, our prediction will be off by about `r round(table_err2$model_lm, digits=0)` runs. The visual representation of data had given us the clue that due to high variation, we can't expect to get very close to a final prediction with just the PP score. 
 
 ### Comparison of R<sup>2</sup>
-We can go on and build a more sophisticated model by incorporating factors like quality of batters to come, quality of bowling etc. but that would be a very logn exercise and one we don't need to undertake. Our purpose was to measure the predictive power of just the Powerplay score and we've done that with a model that can be (subjectively) considered good enough. We'll now calculate R<sup>2</sup> statistic for all models to measure the goodness of fit to see how much variation in the data is explained by our models.
+We can go on and build a more sophisticated model by incorporating factors like quality of batters to come, quality of bowling etc. but that would be a very long exercise and one we don't need to undertake. Our purpose was to measure the predictive power of just the Powerplay score and we've done that with a model that can be (subjectively) considered good enough. We'll now calculate R<sup>2</sup> statistic for all models to measure the goodness of fit to see how much variation in the data is explained by our models.
 
 ```{r R_squared, cache=TRUE}
 calc_R_sq <- function(model, data){
